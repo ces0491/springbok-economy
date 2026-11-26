@@ -1,4 +1,8 @@
-# Quarto and knitr build output
+# Quarto and knitr build output. The rendered paper is built and published by
+# .github/workflows/pages.yml, so no copy in the repository can drift from the
+# analysis.
+/springbok-economy.html
+/springbok-economy.pdf
 /.quarto/
 *_files/
 *.knit.md

@@ -1,0 +1,90 @@
+name: Publish the paper
+
+# The rendered paper is gitignored so that nothing in the repository can drift
+# from the analysis. This workflow renders it from a fresh checkout on every
+# push that could change it and serves the result from GitHub Pages, so the
+# published copy is always the committed code run against the committed data.
+# The render itself stops if a data snapshot no longer matches its hash in
+# data/raw/MANIFEST.csv, or if a sentence the setup chunk asserts no longer holds.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "R/**"
+      - "data/**"
+      - "tests/**"
+      - "springbok-economy.qmd"
+      - "references.bib"
+      - "harvard-cite-them-right.csl"
+      - "styles.css"
+      - "renv.lock"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and a newer push wins.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and render
+    runs-on: ubuntu-latest
+    env:
+      # renv installs cqThemes from GitHub; the token avoids the anonymous
+      # API rate limit.
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      # The R version and the packages both come from renv.lock.
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: renv
+          use-public-rspm: true
+
+      - name: Restore the locked packages
+        uses: r-lib/actions/setup-renv@v2
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Run the unit tests
+        run: Rscript -e "testthat::test_dir('tests/testthat', stop_on_failure = TRUE)"
+
+      # Both formats: the HTML for reading in the browser, the PDF (via the
+      # Typst bundled with Quarto) for downloading. The HTML embeds its
+      # resources, so it is one self-contained file.
+      - name: Render the paper
+        run: quarto render springbok-economy.qmd
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp springbok-economy.html _site/index.html
+          cp springbok-economy.pdf _site/
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

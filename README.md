@@ -4,7 +4,9 @@ A light-hearted economics paper with a straight-faced method: does anything in t
 
 On the data snapshot of 25 November 2026 the answer is no on each timescale. A Test weekend's return on the rand is within about 12 basis points of other weekends', and the rand moves no further in either direction. One more Test in a month adds nothing measurable to real bar sales at restaurants, takeaways and caterers or to sales at specialised food and drink stores, and a quarter with more Tests grows no faster. Winning rather than losing changes none of it. Restaurant and takeaway sales do pick up the 2010 football World Cup. The one estimate the paper cannot explain is a weaker rand on the Friday before a Test weekend. The paper itself has the details, the caveats, and one regression that should be ignored.
 
-- `springbok-economy.qmd`: the paper (Quarto, R). Renders to HTML and to PDF via Typst.
+**Read the paper:** [ces0491.github.io/springbok-economy](https://ces0491.github.io/springbok-economy/) ([PDF](https://ces0491.github.io/springbok-economy/springbok-economy.pdf)).
+
+- `springbok-economy.qmd`: the paper (Quarto, R). Renders to HTML and to PDF via Typst. The rendered copies are not committed: `.github/workflows/pages.yml` runs the unit tests, renders the paper from a fresh checkout on each push that could change it, and publishes it to GitHub Pages.
 - `R/`: the pipeline, one file per stage.
 - `data/raw/`: snapshots of every input, with `MANIFEST.csv` recording each file's source URL, retrieval time and SHA-256. World Rugby's snapshot is a table of the match facts the paper uses; its pages stay out of the repository (see [Licence and data terms](#licence-and-data-terms)).
 - `data/corrections/`: documented fixes to source data, each with a citation.
