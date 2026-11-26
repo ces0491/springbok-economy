@@ -56,8 +56,19 @@ Neither licence covers the data in `data/raw/`, which remain their sources'. Cre
 
 - **World Rugby.** Its [terms](https://www.world.rugby/terms-and-conditions) limit its content, data and statistics to personal, non-commercial use and do not allow it to be republished. The repository therefore holds only the match facts the paper uses (dates, teams, scores, venue country, competition, stage and kick-off time), not World Rugby's pages; `R/fetch_data.R` rebuilds the table from source.
 - **Statistics South Africa.** Stats SA's standard notice (for example in [*Census 2001: Census in brief*](https://www.gov.za/sites/default/files/gcis_document/201409/census01brief0.pdf)) allows its data to be used and processed provided Stats SA is acknowledged as the original source and the analysis is stated to be the user's own independent processing, and does not allow the data or any reprocessed version to be sold without its permission. The analysis in this repository is my own independent processing of Stats SA's data.
-- **IMF International Financial Statistics,** via FRED. The IMF's [terms](https://www.imf.org/en/about/copyright-and-terms) allow its statistical data to be reused, copied and redistributed with the IMF as the source ("Source: International Monetary Fund, International Financial Statistics"); commercial reuse needs its permission.
-- **Federal Reserve Board H.10 exchange rates,** retrieved from FRED, Federal Reserve Bank of St. Louis.
+- **IMF International Financial Statistics,** via FRED. The IMF's [terms](https://www.imf.org/en/about/copyright-and-terms) allow its statistical data to be reused, copied and redistributed with the IMF as the source ("Source: International Monetary Fund, International Financial Statistics"); commercial reuse needs its permission. FRED tags the two GDP series "Copyrighted: Citation Required": they may be used with the source credited and FRED acknowledged.
+- **Federal Reserve Board H.10 exchange rates,** via FRED, which tags the six series "Public Domain: Citation Requested".
+
+Under FRED's [terms](https://fred.stlouisfed.org/legal/) each series needs a citation (requested for the public-domain ones, required for the IMF's), in the form its series page suggests:
+
+- Board of Governors of the Federal Reserve System (US), South African Rand to U.S. Dollar Spot Exchange Rate [DEXSFUS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/DEXSFUS>
+- Board of Governors of the Federal Reserve System (US), Brazilian Reals to U.S. Dollar Spot Exchange Rate [DEXBZUS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/DEXBZUS>
+- Board of Governors of the Federal Reserve System (US), Mexican Pesos to U.S. Dollar Spot Exchange Rate [DEXMXUS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/DEXMXUS>
+- Board of Governors of the Federal Reserve System (US), Indian Rupees to U.S. Dollar Spot Exchange Rate [DEXINUS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/DEXINUS>
+- Board of Governors of the Federal Reserve System (US), South Korean Won to U.S. Dollar Spot Exchange Rate [DEXKOUS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/DEXKOUS>
+- Board of Governors of the Federal Reserve System (US), Thai Baht to U.S. Dollar Spot Exchange Rate [DEXTHUS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/DEXTHUS>
+- International Monetary Fund, Real Gross Domestic Product (GDP) for South Africa [NGDPRSAXDCZAQ], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/NGDPRSAXDCZAQ>
+- International Monetary Fund, Nominal Gross Domestic Product (GDP) for South Africa [NGDPSAXDCZAQ], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/NGDPSAXDCZAQ>
 - **Cross-check results** (`data/raw/crosscheck/`): Springbok match results exported from my own results database, compiled from ESPN's scoreboard and a historical import.
 
 `harvard-cite-them-right.csl` is from the Zotero Style Repository, under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
