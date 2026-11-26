@@ -1,0 +1,4 @@
+# The snapshots in data/raw are checked against the SHA-256 hashes in
+# data/raw/MANIFEST.csv, and the render stops if one differs. Git must store
+# and check them out byte for byte, whatever the platform's line endings.
+data/raw/** -text

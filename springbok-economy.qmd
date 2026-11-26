@@ -1,0 +1,959 @@
+---
+title: "The Bok Stops Here"
+subtitle: "Springbok Tests and the South African economy, 1995–2026"
+author:
+  - name: Cesaire Tobias
+    affiliation: Sheet Solved
+date: 2026-11-25
+date-format: "D MMMM YYYY"
+bibliography: references.bib
+csl: harvard-cite-them-right.csl
+link-citations: true
+number-sections: true
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    embed-resources: true
+    fig-dpi: 200
+    css: styles.css
+    theme: cosmo
+    fig-cap-location: bottom
+    tbl-cap-location: top
+  typst:
+    toc: true
+    citeproc: true
+    papersize: a4
+    margin:
+      x: 2.4cm
+      y: 2.4cm
+    fontsize: 10.5pt
+    fig-dpi: 300
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    include-in-header:
+      text: |
+        #show table.cell: set par(justify: false)
+        #show table.cell: set text(hyphenate: false)
+execute:
+  echo: false
+  warning: false
+  message: false
+fig-width: 7
+fig-height: 3.6
+---
+
+```{r setup}
+#| include: false
+for (f in c("config", "manifest", "prepare", "models", "analysis", "figures")) {
+  source(file.path("R", paste0(f, ".R")))
+}
+library(knitr)
+
+res <- run_analysis()
+
+# Inline numbers use a true minus sign, which Typst does not always substitute.
+minus <- function(s) sub("^-", "−", s)
+bp <- function(x, digits = 1) minus(formatC(100 * x, format = "f", digits = digits))
+num <- function(x, digits = 2) minus(formatC(x, format = "f", digits = digits, big.mark = ","))
+pval <- function(p) if (p < 0.001) "< 0.001" else formatC(p, format = "f", digits = 3)
+# "p = 0.012" or "p < 0.001", for prose where the sign depends on the value.
+p_eq <- function(p) if (p < 0.001) "p < 0.001" else paste("p =", pval(p))
+pct <- function(x, digits = 1) minus(formatC(x, format = "f", digits = digits))
+# A coefficient on 100 × log sales, as a percentage change. The two agree for
+# small effects; for a one-month jump such as June 2010 they do not.
+lp_pct <- function(x) 100 * (exp(x / 100) - 1)
+plural <- function(n, one, many) sprintf("%d %s", n, if (n == 1) one else many)
+ordinal <- function(n) {
+  suffix <- if (n %% 100 %in% 11:13) "th" else c("th", "st", "nd", "rd", rep("th", 6))[n %% 10 + 1]
+  paste0(n, suffix)
+}
+# "a, b and c".
+and_list <- function(x) if (length(x) == 1) paste(x) else paste(paste(head(x, -1), collapse = ", "), "and", tail(x, 1))
+# Month names come from R's own English constants, so a render does not depend
+# on the machine's locale.
+long_date <- function(d) paste(mday(d), month.name[month(d)], year(d))
+month_year <- function(d) paste(month.name[month(d)], year(d))
+short_month_year <- function(d) paste(month.abb[month(d)], year(d))
+quarter_label <- function(d) paste0(year(d), "Q", quarter(d))
+# "April and May 2020" from month starts that fall in one year.
+month_list <- function(d) {
+  d <- sort(unique(d))
+  stopifnot(length(unique(year(d))) == 1)
+  paste(and_list(month.name[month(d)]), year(d[1]))
+}
+row_of <- function(tbl, term) tbl[tbl$term == term, ]
+
+# The two contrasts on every outcome.
+hl <- res$headline
+hl_of <- function(k) hl[hl$key == k, ]
+
+# The rand: a Test is played, and it is won rather than lost.
+P <- row_of(res$played_preferred$table, "Test played")
+mde_p <- mde(P$se)
+eq_p <- equivalence_bound(P$estimate, P$se)
+ri_p <- res$ri_played$p_value[["Test played"]]
+pref <- res$preferred$table
+W <- row_of(pref, "Win"); L <- row_of(pref, "Loss"); D <- row_of(pref, "Win - Loss")
+eq_d <- equivalence_bound(D$estimate, D$se)
+ri_d <- res$ri_result$p_value[["Win - Loss"]]
+
+last_fix <- res$zar |> filter(!is.na(value)) |> slice_max(date, n = 1)
+# Cents per dollar that a rand move of x percent (positive = stronger) is worth.
+cents <- function(x) 100 * last_fix$value * (1 - exp(-x / 100))
+
+tp <- res$tests_priced
+n_tests_all <- nrow(res$tests_all)
+n_priced <- nrow(tp)
+n_weekend <- sum(tp$weekend)
+n_weekday <- sum(!tp$weekend)
+n_years <- as.integer(format(max(tp$match_date), "%Y")) - as.integer(format(FX_START, "%Y"))
+share_jun_nov <- 100 * mean(month(tp$match_date) %in% 6:11)
+panel <- res$panel
+n_weekends <- nrow(panel)
+n_test_weekends <- sum(panel$test)
+counts <- table(panel$outcome)
+n_overlap <- sum(res$panel_all$overlaps_weekday_test)
+nz <- table(tp$result[tp$vs_nz])
+first_year <- format(min(res$tests_all$match_date), "%Y")
+widest <- tp |> slice_max(margin, n = 1)
+heaviest <- tp |> slice_min(margin, n = 1)
+
+# Either side of the weekend.
+fD <- row_of(res$falsification$table, "Win - Loss")
+plc <- lapply(res$placebo, function(x) x$table)
+prof <- function(term, k) res$profile[res$profile$term == term & res$profile$offset == k, ]
+played_by_interval <- res$profile[res$profile$term == "Test played", ]
+# The Friday is one of the estimates in the interval figure, both contrasts in
+# each of the five intervals, and the adjustment counts all of them.
+n_profile_estimates <- sum(res$profile$term %in% c("Test played", "Win - Loss"))
+friday_bonferroni <- min(1, n_profile_estimates * plc$preferred$p_value)
+plc_venue <- res$placebo_venue$table
+through <- res$through_weekend$table
+
+# Which Tests.
+ven <- res$venue$table
+ven_gap <- row_of(ven, "Home - Away")
+finer_played <- res$finer$played$table
+finer_gap <- row_of(res$finer$venue$table, "Home - Away")
+sg <- function(label, term) {
+  s <- res$subgroups[[which(vapply(res$subgroups, function(x) x$table$group[1] == label, logical(1)))]]
+  c(as.list(row_of(s$table, term)), list(counts = s$counts))
+}
+home_in_june <- 100 * mean(month(panel$match_date[panel$home_test == 1]) == 6)
+away_in_november <- 100 * mean(month(panel$match_date[panel$away == 1]) == 11)
+venue_d <- res$venue_fit$table
+opp_d <- res$opponent_fit$table
+away_share <- function(o) 100 * mean(panel$away[panel$outcome == o])
+weekday_ar <- res$weekday$ar
+# The size of the weekend move, in either direction.
+S <- row_of(res$size$fit$table, "Test played")
+
+# The weeks after the finals.
+ff <- res$finals_fx
+# The week after the 2007 final, fix by fix, up to the day before the deal.
+icbc <- res$icbc_path
+icbc_before <- icbc[icbc$date == max(icbc$date[icbc$date < ICBC_DEAL_ANNOUNCED]), ]
+icbc_end <- icbc[nrow(icbc), ]
+moodys_fix_local <- format(
+  with_tz(as.POSIXct(paste(MOODYS_DECISION, "12:00"), tz = "America/New_York"), "Africa/Johannesburg"), "%H:%M"
+)
+# The week before the 2019 final: the fix on the day of the medium-term budget,
+# and the rand against its level at the fix before it.
+budget_fix <- res$fx[res$fx$date == MTBPS_2019, ]
+rand_since_budget <- function(d) -100 * log(res$zar$value[res$zar$date == d] / budget_fix$zar_prev)
+budget_to_friday <- rand_since_budget(ff$start[3])
+budget_to_monday <- rand_since_budget(ff$monday[3])
+rwc_2023 <- range(res$tests_all$match_date[res$tests_all$rwc_year %in% 2023])
+
+lev <- summary(res$levels_fit)$coefficients
+dif <- summary(res$diffs_fit)$coefficients
+# The coefficient is on the log of rand per dollar: the rise in the rand price
+# of a dollar, and the fall in the dollar value of a rand that goes with it.
+lev_effect <- 100 * (exp(lev["titles", "Estimate"]) - 1)
+lev_loss <- 100 * (1 - exp(-lev["titles", "Estimate"]))
+days_left <- as.integer(ceiling_date(RWC_FINALS_WON, "quarter") - 1L - RWC_FINALS_WON)
+
+# Output.
+g <- res$growth
+gt <- res$gdp_tests
+gdp_fit <- res$gdp_fits
+gdp_test <- row_of(gdp_fit$tests$table, "Per Test")
+gdp_wl <- row_of(gdp_fit$result$table, "Win - Loss")
+gdp_lead <- row_of(gdp_fit$lead$table, "Tests next quarter")
+gdp_all <- row_of(gdp_fit$all_quarters$table, "Per Test")
+gdp_q <- res$gdp_sample
+gdp_sd_all <- sd(g$growth)
+gdp_sd_ex <- sd(g$growth[!g$date %in% res$covid])
+holiday_quarter <- floor_date(HOLIDAY_2023, "quarter")
+nominal_holiday_q <- res$gdp_nominal$value[res$gdp_nominal$date == holiday_quarter]
+# Nominal GDP in the latest quarter, R million, to put a share of a quarter's output into rand.
+nominal_latest <- tail(res$gdp_nominal$value[!is.na(res$gdp_nominal$value)], 1)
+covid_quarters <- paste(quarter_label(res$covid), collapse = " and ")
+fix25 <- res$corrections |> mutate(match_date = as.Date(match_date))
+r2_benchmark <- 100 * summary(res$played[["(2)"]]$fit)$r.squared
+
+# Spending.
+sp_tab <- res$spending
+sp_row <- function(outcome, spec, term) row_of(sp_tab[[outcome]][[spec]]$table, term)
+bar_test <- sp_row("bar", "tests", "Per Test")
+food_test <- sp_row("food", "tests", "Per Test")
+spec_test <- sp_row("specialised", "tests", "Per Test")
+gen_test <- sp_row("general", "tests", "Per Test")
+fifa_jun <- function(o) sp_row(o, "tests", "2010 World Cup, June")
+fifa_jul <- function(o) sp_row(o, "tests", "2010 World Cup, July")
+fifa_rank <- res$fifa_rank
+saturday <- function(o) sp_row(o, "tests", "Extra Saturday")
+saturday_gap <- function(o) sp_row(o, "tests", "Saturday - Test")
+bar_easter <- sp_row("bar", "tests", "Good Friday month")
+bar_win <- sp_row("bar", "result", "Per win")
+bar_loss <- sp_row("bar", "result", "Per loss")
+bar_wl <- sp_row("bar", "result", "Win - Loss")
+spec_wl <- sp_row("specialised", "result", "Win - Loss")
+days_per_month <- 365.25 / 12
+eq_bar <- equivalence_bound(bar_test$estimate, bar_test$se)
+eq_spec <- equivalence_bound(spec_test$estimate, spec_test$se)
+# A percentage of a month's sales in a series, in R million at recent sales.
+rand_m <- function(o, x) res$spend_level[[o]] * x / 100
+spend_bar <- res$spend |> filter(!is.na(bar))
+spend_months <- sp_tab$bar$tests$n
+ident <- res$spend_ident
+short_test <- row_of(res$spending_short$table, "Per Test")
+# The exploratory splits: per win, per loss, home, away and World Cup knockouts.
+explore <- bind_rows(lapply(names(sp_tab), function(o) {
+  bind_rows(lapply(c("result", "venue", "knockout"), function(s) {
+    x <- sp_tab[[o]][[s]]$table
+    mutate(x[!grepl("^2010", x$term) & x$term != "Win - Loss", ], outcome = o, spec = s)
+  }))
+}))
+explore$holm <- p.adjust(explore$p_value, method = "holm")
+# The placebo: next month's Tests, one estimate per series.
+lead <- bind_rows(lapply(names(sp_tab), function(o) mutate(sp_row(o, "lead", "Tests next month"), outcome = o)))
+lead$holm <- p.adjust(lead$p_value, method = "holm")
+lead_of <- function(o) lead[lead$outcome == o, ]
+zero_months <- res$spend_all$date[which(res$spend_all$bar == 0)]
+# The industry's bar income against the sum of its three types of business.
+bar_by_type <- res$statssa |>
+  filter(code %in% c(SPENDING_SERIES[["bar"]], FOOD_BEV_BAR_PARTS)) |>
+  mutate(part = code != SPENDING_SERIES[["bar"]]) |>
+  group_by(date) |>
+  summarise(total = sum(value[!part]), parts = sum(value[part]), n_parts = sum(part), .groups = "drop") |>
+  filter(n_parts == length(FOOD_BEV_BAR_PARTS))
+food_bev_total <- bar_by_type$total
+food_bev_parts <- bar_by_type$parts
+
+# Sentences below that describe the data in words. If a re-fetch makes one
+# false, the build stops here rather than shipping it.
+rq <- res$rwc_quarters
+growth_at <- function(d) g$growth[match(d, g$date)]
+around_2019 <- growth_at(c(rq$final_quarter[3], rq$next_quarter[3]))
+around_others <- growth_at(c(rq$final_quarter[-3], rq$next_quarter[-3]))
+n_8pm_australia <- res$wr |>
+  filter(venue_country == "Australia", format(kickoff_utc, "%H:%M") == "20:00") |>
+  nrow()
+stopifnot(
+  # The headline.
+  "an outcome now moves when a Test is played" = all(hl$played_p >= 0.05),
+  "an outcome now moves with the result" = all(hl$won_p >= 0.05),
+  "bar sales are no longer the largest of the played estimates in percent, or specialised stores the smallest" =
+    which.max(abs(hl$played)) == which(hl$key == "bar") &&
+    which.min(abs(hl$played)) == which(hl$key == "specialised"),
+  "a design can no longer see a third of a standard deviation" = all(mde(hl$played_se) / hl$sd < 1 / 3),
+  "the text counts five fix intervals, two either side of the weekend" = identical(PROFILE_OFFSETS, -2:2),
+  "the text counts ten estimates in the interval figure" = n_profile_estimates == 10,
+  "Tests are no longer absent from first quarters and most frequent in third quarters" =
+    sum(gdp_q$tests[gdp_q$quarter_of_year == 1]) == 0 &&
+    which.max(tapply(gdp_q$tests, gdp_q$quarter_of_year, sum)) == 3,
+  # The rand.
+  "the win-minus-loss interval no longer reaches above zero" = D$conf_high > 0 && D$estimate < 0,
+  "a Test weekend now moves the rand by more, in either direction" = S$p_value >= 0.05,
+  "weekday Tests are no longer mostly at World Cups" = mean(res$weekday$rwc) > 0.5,
+  # The day before.
+  "the Friday before a Test no longer stands out" =
+    plc$preferred$p_value < 0.05 && plc$preferred$estimate < 0 && friday_bonferroni < 0.05,
+  "the Friday is no longer the only interval that stands out for the Test indicator" =
+    sum(played_by_interval$p_value < 0.05) == 1 && played_by_interval$offset[played_by_interval$p_value < 0.05] == -1,
+  "a check now removes the Friday gap" =
+    all(vapply(plc[c("winsorised", "week_of_year", "cells")], function(x) x$p_value < 0.05, logical(1))),
+  "the Friday gap changes sign between the halves of the sample, or between venues" =
+    all(vapply(plc[names(res$periods)], function(x) x$estimate < 0, logical(1))) &&
+    all(plc_venue$estimate[plc_venue$term %in% c("Home Test", "Away Test")] < 0),
+  "the Friday gap now shows an interval earlier or over the weekend" =
+    plc$earlier$p_value >= 0.05 && plc$weekend$p_value >= 0.05,
+  "the weekend now undoes the Friday gap" = through$estimate < 0,
+  # Home and away.
+  "the venue gap no longer looks as described" =
+    row_of(ven, "Home Test")$p_value >= 0.05 && row_of(ven, "Away Test")$p_value < 0.05 &&
+    ven_gap$p_value < 0.05 && ven_gap$estimate < 0,
+  "week-of-year effects no longer narrow the venue gap" =
+    abs(finer_gap$estimate) < abs(ven_gap$estimate) && finer_gap$p_value >= 0.05 &&
+    finer_played$p_value >= 0.05,
+  # The result.
+  "the wrong-signed difference no longer appears either side of the weekend" =
+    all(vapply(c(-2, 1), function(k) {
+      prof("Win - Loss", k)$estimate < 0 && abs(prof("Win - Loss", k)$estimate - D$estimate) < 0.05
+    }, logical(1))),
+  "venue and opponent controls no longer shrink the difference" =
+    abs(opp_d$estimate) < abs(venue_d$estimate) && abs(venue_d$estimate) < abs(D$estimate),
+  "losses are no longer mostly away from home" = away_share("Loss") > 50 && away_share("Loss") > away_share("Win"),
+  "a World Cup subgroup now moves the rand" =
+    sg("World Cup matches", "Test played")$p_value >= 0.05 &&
+    sg("World Cup knockouts", "Test played")$p_value >= 0.05,
+  # Spending.
+  "the food and beverages industry is no longer restaurants, takeaways and caterers alone" =
+    isTRUE(all.equal(food_bev_total, food_bev_parts)),
+  "bar income was zero outside the excluded months" =
+    length(zero_months) > 0 && all(zero_months >= COVID_MONTHS[1] & zero_months <= COVID_MONTHS[2]),
+  "June 2010 no longer stands out in bar or food sales" =
+    all(vapply(c("bar", "food"), function(o) fifa_jun(o)$estimate > 0 && fifa_jun(o)$p_value < 0.05, logical(1))),
+  "June 2010 now stands out in a retail series, or the two cover different months" =
+    all(vapply(c("specialised", "general"), function(o) fifa_jun(o)$p_value >= 0.05, logical(1))) &&
+    fifa_rank$specialised$n == fifa_rank$general$n,
+  "July 2010 no longer stands out at general dealers only" =
+    fifa_jul("general")$p_value < 0.05 && fifa_jul("specialised")$p_value >= 0.05,
+  "a fifth Saturday no longer beats a Test in food, all income and specialised stores" =
+    all(vapply(c("food", "total", "specialised"), function(o) {
+      saturday_gap(o)$estimate > 0 && saturday_gap(o)$p_value < 0.05
+    }, logical(1))),
+  "a fifth Saturday now significantly beats a Test in bar sales" =
+    saturday_gap("bar")$estimate > 0 && saturday_gap("bar")$p_value >= 0.05,
+  "months without a Test are no longer January to May" = identical(ident$months_never, 1:5),
+  "a non-bar per-Test effect is now half a percent or more" =
+    all(abs(c(food_test$estimate, spec_test$estimate, gen_test$estimate)) < 0.5),
+  "general dealers are no longer the bluntest series in rand" =
+    rand_m("general", mde(gen_test$se)) > 5 * rand_m("specialised", mde(spec_test$se)),
+  "bar sales no longer lean towards losses" = bar_wl$estimate < 0,
+  "specialised retail no longer leans towards wins" = spec_wl$estimate > 0,
+  "an exploratory split now survives Holm's adjustment" = all(explore$holm >= 0.05),
+  "the placebo is no longer larger than the effect in bar sales, or no longer shows in all income" =
+    lead_of("bar")$estimate > bar_test$estimate && lead_of("total")$p_value < 0.05 &&
+    lead_of("total")$holm >= 0.05,
+  # Output.
+  "GDP now moves with Tests, or its placebo fails" =
+    gdp_test$p_value >= 0.05 && gdp_lead$p_value >= 0.05 && gdp_wl$p_value >= 0.05,
+  "the 2020 quarters no longer blur the GDP estimate" = gdp_all$se > 3 * gdp_test$se,
+  "the GDP test now sees less in rand than general dealers do" =
+    nominal_latest * mde(gdp_test$se) / 100 > rand_m("general", mde(gen_test$se)),
+  # The four titles.
+  "2019 quarters no longer both shrank" = all(around_2019 < 0),
+  "other final quarters no longer all grew" = all(around_others > 0),
+  "the 2007 week no longer outpaces the basket" = ff$ar_week[2] > 0,
+  "the 2019 Monday no longer outpaces the basket" = ff$ar_monday[3] > 0,
+  "the rand no longer fell to the Monday after the 2007 final" = ff$zar_monday[2] < 0,
+  "the fix before the Standard Bank deal is not a Wednesday, or the cautionary not a Tuesday" =
+    wday(icbc_before$date, week_start = 1) == 3 && wday(ICBC_CAUTIONARY, week_start = 1) == 2,
+  "the rand had not gained by the day before the Standard Bank deal" =
+    icbc_before$zar_cum > 0 && icbc_before$zar_cum < icbc_end$zar_cum,
+  "the basket rose with the rand after the 2019 final" = ff$em_monday[3] < 0,
+  "the 2019 budget is not the Wednesday before the final, three fixes before the Friday's" =
+    wday(MTBPS_2019, week_start = 1) == 3 && MTBPS_2019 == MOODYS_DECISION - 2L &&
+    MOODYS_DECISION == ff$start[3] &&
+    sum(res$fx$date > budget_fix$prev_date & res$fx$date <= ff$start[3]) == 3,
+  "the rand did not fall on the 2019 budget, or had recovered by the Monday" =
+    budget_fix$r_zar < 0 && budget_to_friday < budget_fix$r_zar && budget_to_monday < 0,
+  "the 1995 final was not at home, or not the one closest to its quarter's end" =
+    res$finals$venue_country[1] == "South Africa" && which.min(days_left) == 1 &&
+    all(month(RWC_FINALS_WON[-1]) %in% 10:11),
+  # Data and sources.
+  "World Rugby and the database no longer disagree on exactly one score" =
+    nrow(res$crosscheck$score_disagreements) == 1,
+  "the text describes exactly one score correction" = nrow(fix25) == 1,
+  "tour opponents named in the text are missing" =
+    all(c("Pontypridd", "Hanan Shield Districts") %in% res$wr$opponent),
+  "fewer than two Tests in Australia are listed at 8pm UTC" = n_8pm_australia >= 2,
+  "the North-West University remarks were not published during the 2023 World Cup" =
+    NWU_REMARKS_PUBLISHED > rwc_2023[1] && NWU_REMARKS_PUBLISHED < rwc_2023[2]
+)
+```
+
+::: {.callout-note appearance="simple"}
+## Read this first
+
+This paper was written just for fun, by a South African rugby fan. The data and sources are real, and the whole document can be reproduced from the code and data snapshots in the repository at [`r sub("^https://", "", REPO_URL)`](`r REPO_URL`) by following the steps in @sec-reproduce.
+:::
+
+::: {.abstract-box}
+**Abstract.** Does anything in the South African economy move when the Springboks play? This paper puts that one question to three outcomes on three timescales: the rand over the weekend of a Test, real sales over the month at restaurants, takeaways and caterers, at butchers and bottle stores and at general dealers, and real GDP over the quarter. The same regression is fitted to each, with the number of Springbok Tests in the period as the variable of interest and the season and the year held fixed. A Test changes the rand's weekend return by `r bp(P$estimate)` basis points (95% CI `r bp(P$conf_low)` to `r bp(P$conf_high)`), real bar sales in its month by `r num(bar_test$estimate)`% (`r num(bar_test$conf_low)` to `r num(bar_test$conf_high)`), sales at butchers, bottle stores and other specialised food and drink retailers by `r num(spec_test$estimate)`% (`r num(spec_test$conf_low)` to `r num(spec_test$conf_high)`) and GDP growth in its quarter by `r num(gdp_test$estimate)` percentage points (`r num(gdp_test$conf_low)` to `r num(gdp_test$conf_high)`). None of these can be told from zero, and neither can the estimates for food sales and general dealers. The bar series that shows no rugby rose `r pct(lp_pct(fifa_jun("bar")$estimate), 0)`% in June 2010, when South Africa hosted the football World Cup. Winning rather than losing makes no measurable difference either: the rand is `r bp(abs(D$estimate))` basis points weaker after a win than after a loss (`r bp(D$conf_low)` to `r bp(D$conf_high)`). One estimate does stand out, and it comes before a ball is kicked. The rand is `r bp(abs(plc$preferred$estimate))` basis points weaker on the Friday before a Test weekend than on other Fridays (`r p_eq(plc$preferred$p_value)`), which the paper cannot explain. The weeks after the 2007 and 2019 finals did see large rand rallies, and both coincide with unrelated financial news. One regression in the paper finds that each World Cup title has cost the rand `r pct(lev_loss, 0)`% of its value against the dollar; @sec-levels explains why it should be ignored.
+
+**JEL codes:** Z20, F31, G14, G41, E32. **Keywords:** rugby, exchange rates, consumer spending, output, event study, sports sentiment, randomisation inference.
+:::
+
+# Introduction
+
+South Africa takes its rugby seriously. When the Springboks won the 2023 Rugby World Cup, the President declared `r long_date(HOLIDAY_2023)` a public holiday [@ramaphosa2023address; @presidency2023proclamation]. During the 2023 tournament, a professor in North-West University's Faculty of Economic and Management Sciences explained that "when a country's team loses, investors are somewhat depressed, and the next day is often a bad one on the stock exchange", adding that research had found this "for the FIFA World Cup and international cricket and rugby matches" [@insideeducation2023nwu]. In 2015 a Standard Bank blog post reported that after the 2007 final "the rand strengthened by 4.3% against the US dollar and managed to gain 7.0% against the pound in the week following the victory" [@standardbank2015win].
+
+My question, however, was less about whether the Boks win or lose. What I wanted to know is whether anything in the economy moves when the Springboks play, regardless of the result. A Test is an occasion before it is a result. People buy brandy and braai meat ahead of it and fill bars during it, whoever wins, and if the claims above are right they trade the rand differently after it. If any of that adds up to something, the periods that hold a Test match should look different from the ones that do not.
+
+The paper puts the question to three outcomes at three timescales. The rand answers within a weekend. Most Tests are played on a Saturday or Sunday, when the currency market is closed, so the Friday and Monday noon fixes in New York bracket the match exactly. Spending answers within a month, in Statistics South Africa's surveys of real food and bar sales at restaurants, takeaways and caterers, and of real sales at butchers, bottle stores and general dealers. Output answers within a quarter. The same regression is run on each, with the number of Tests in the period as the variable of interest, and the estimate in each case is the percentage change in the outcome from one more Test. A second version splits the Tests into wins and losses and asks whether the result matters on top of the occasion.
+
+The answer is the same on all three timescales (@tbl-headline). A Test weekend's return on the rand differs from other weekends' by `r bp(P$estimate)` basis points, with a 95% confidence interval from `r bp(P$conf_low)` to `r bp(P$conf_high)`. One more Test in a month changes real bar sales by `r pct(bar_test$estimate)`% (`r pct(bar_test$conf_low)` to `r pct(bar_test$conf_high)`) and sales at butchers and bottle stores by `r pct(spec_test$estimate)`%. One more Test in a quarter goes with `r num(gdp_test$estimate)` percentage points of GDP growth (`r num(gdp_test$conf_low)` to `r num(gdp_test$conf_high)`). Winning rather than losing changes none of the six outcomes measurably.
+
+Spending does spike on match days. Bank card data show it: after the 2023 final, spending by Discovery Bank's clients in South Africa was three times that of an average Saturday night [@discovery2023spendtrend]. Whether a spike adds anything to the economy depends on whether the money would otherwise have been spent later in the month, on something else or somewhere else. A monthly total can tell the difference, and it shows nothing. The same bar series rose `r pct(lp_pct(fifa_jun("bar")$estimate), 0)`% in the month South Africa hosted the 2010 football World Cup, so it can see an event when there is one.
+
+One estimate stands out, and it is in the wrong place. On the Friday before a Test weekend the rand is `r bp(abs(plc$preferred$estimate))` basis points weaker than on other Fridays (`r p_eq(plc$preferred$p_value)`). No match has been played by then and the fixture has been known for months. The paper reports it in @sec-checks and has no explanation for it.
+
+The usual evidence for a Springbok effect is the rand's rally after a World Cup final. Five days after the 2007 final, on Thursday 25 October, the Industrial and Commercial Bank of China agreed to pay R36.7 billion for a fifth of Standard Bank, a record for foreign direct investment into South Africa [@allen2007chinese; @laing2007standard]. Standard Bank had told the market two days earlier that talks were under way [@allen2007chinese]. Over that week the rand outpaced the emerging-market basket by `r pct(ff$ar_week[2])` percentage points. The bank's own deal is a better candidate for the rally than the rugby.
+
+# Related work
+
+Much of the work on national sporting results and asset prices is about football and stock markets. @ashton2003economic found a strong association between England's results and the next day's FTSE 100 return. A replication found mistakes in the empirical set-up [@klein2009reconsidering], and the original authors later reported that the link had weakened after 2002 [@ashton2011do]. The best-known study, @edmans2007sports, found a next-day stock market decline of 49 basis points after a loss in the elimination stage of the football World Cup. Their rugby sample covers seven nations including South Africa, which contributes 27 wins and 25 losses. Rugby losses were followed by abnormal returns of −9.5 basis points with a t-statistic of −1.74, wins by −8.6 basis points, and the authors describe the rugby evidence as marginal (their Tables V and AI, and p. 1984). @kaplanski2010exploitable found weaker US stock returns during football World Cups, and @ehrmann2016hurts showed that prices fall during a match when the home side is about to lose. A meta-analysis of 37 football studies found that the loss effect for national teams shrinks to about −5 basis points and becomes insignificant once publication bias is corrected for [@geyerklingeberg2018do].
+
+Rugby-specific evidence is thinner, and mostly null. @boyle2003reflected found that New Zealand's stock market behaves independently of the All Blacks. Two South African studies tested the JSE All Share Index against Springbok results. @smith2010evaluating found no significant win or loss effect for rugby, and @botha2013does found the rugby win and loss coefficients insignificant at all conventional levels. @gerlach2011international showed that abnormal returns after national team matches also appear in comparable countries that did not play, which is why this paper nets out a benchmark of other currencies.
+
+Exchange rates have had less attention. Two studies of Turkey find opposite signs: the lira weakened after club football wins against foreign sides [@eker2007football] and strengthened after national team wins [@demir2014effect]. The literature search for this paper found no study of rugby and the rand. Beyond markets, @kavetsos2010national found that hosting a football tournament raises reported happiness while national sporting success has no significant effect, and @baade2004quest estimated that the US host cities of the 1994 football World Cup suffered cumulative losses of $5.5 billion to $9.3 billion.
+
+Spending is where the literature studies the occasion more than the result, and the question there is displacement. Studies of US cities find that much of the money spent on sport is money not spent on something else. @coates2003effect found that professional sports raise earnings in amusement and recreation in US cities and lower them in other sectors. @coates2011mega found, in monthly sales-tax data for Texas cities, that regular-season and many post-season games coincided with net falls in economic activity, and @baade2008selling found that new stadiums, franchises and mega-events in Florida were as likely to reduce taxable sales as to raise them. Among students at one US university, high-profile football game days rank with New Year's Eve among the heaviest drinking days [@neal2007hook], but Bank of Ireland's card data show Irish pub spending falling in September 2023, during Ireland's World Cup pool games, while its customers' spending in France rose. That comparison is with August, and the bank notes that September spending also fell in 2021 and 2022 [@bankofireland2023social]. Before the 2019 final, Business Insider SA predicted that liquor outlets would sell more if the Springboks lost, quoting a University of Pretoria psychologist on research showing that drinking rises on days of big sporting events [@devilliers2019liquor].
+
+This paper asks one question of the rand, of South African spending and of output, with the same regression on each. It adds `r n_test_weekends` Test weekends over `r n_years` years, a design that needs no kick-off times, a monthly test of whether match-day spending is new money, and statements of the effect sizes the data can rule out, which a null result needs in order to mean anything.
+
+# Data {#sec-data}
+
+@tbl-sources lists the sources. The paper renders from snapshots of each, stored with their SHA-256 hashes in the repository, and refuses to run if a snapshot has changed.
+
+```{r}
+#| label: tbl-sources
+#| tbl-cap: "Data sources"
+src <- data.frame(
+  Variable = c("Springbok Test results", "Second results source (cross-check)",
+               "Rand per US dollar", "Benchmark currencies per US dollar",
+               "Bar and food income, real", "Retail sales by type of retailer, real",
+               "Real and nominal GDP"),
+  Source = c("World Rugby match list", "Author's results database (ESPN and a historical import)",
+             "Federal Reserve H.10, via FRED (DEXSFUS)",
+             "H.10 via FRED: real, peso, rupee, won, baht",
+             "Stats SA Food and beverages survey (P6420)",
+             "Stats SA Retail trade sales (P6242.1)",
+             "IMF International Financial Statistics, via FRED"),
+  Frequency = c("Per match", "Per match", "Daily (US business days)", "Daily",
+                "Monthly", "Monthly", "Quarterly, seasonally adjusted"),
+  Sample = c(sprintf("%s–2026", first_year), sprintf("%s–2026", first_year),
+             sprintf("%s to %s", short_month_year(FX_START), short_month_year(max(res$fx$date))),
+             "As for the rand",
+             sprintf("%s to %s", short_month_year(min(spend_bar$date)), short_month_year(max(spend_bar$date))),
+             sprintf("%s to %s", short_month_year(min(res$spend$date[!is.na(res$spend$specialised)])),
+                     short_month_year(max(res$spend$date[!is.na(res$spend$specialised)]))),
+             sprintf("%dQ%d to %s", year(min(res$gdp$date)), quarter(min(res$gdp$date)), tail(g$quarter, 1)))
+)
+kable(src, format = "pipe")
+```
+
+::: {.table-note}
+*Sources:* @worldrugby2026matches; @tobias2026rugbydb; @fed2026h10; @statssa2026foodbev; @statssa2026retail; @imf2026gdp. Retrieved 25 November 2026. The analysis of Statistics South Africa's data is my own independent processing of it.
+:::
+
+**Tests.** World Rugby's list holds `r nrow(res$wr)` Springbok entries from `r first_year` onwards, including tour matches against provinces, clubs, A sides, the Barbarians and World XVs. Pontypridd and the Hanan Shield Districts are in there. A match counts as a Test here when the opponent is the senior national side of a World Rugby member union or the British & Irish Lions, which leaves `r n_tests_all` Tests. Each was paired with a results database I compiled separately from ESPN's scoreboard and an older historical import [@tobias2026rugbydb]. All `r res$crosscheck$n_paired` Tests pair one to one, `r res$crosscheck$date_offsets` of them a day apart because an evening kick-off in the Americas falls on the next UTC day. The two sources disagree on one score: World Rugby has the Springboks scoring `r fix25$world_rugby_sa_score` in the `r fix25$sa_score`–`r fix25$opp_score` loss to `r fix25$opponent` at Ellis Park on `r long_date(fix25$match_date)`, against `r fix25$sa_score` in the database and in match reports [@williamson2025stunner]. The correction is recorded in the repository, and the result is a loss either way. World Rugby's labels for World Cup stages agree with the tournament format in all `r res$n_rwc_labelled` World Cup matches, and its four finals won are the four in @tbl-finals. A Test counts as a home Test when World Rugby's venue is in South Africa. For the `r plural(res$n_venue_filled, "Test", "Tests")` where it lists no venue, the second database's home side decides.
+
+World Rugby's kick-off times are unreliable for older matches. Several Tests in Australia are listed at 8pm UTC, which would be early the next morning local time. The design below does not use kick-off times.
+
+**Exchange rates.** The rand series is the Federal Reserve's noon buying rate in New York, in rand per US dollar [@fed2026h10]. The sample starts on `r long_date(FX_START)`, the day South Africa replaced its dual commercial and financial rand with one exchange rate [@liebenberg1995statement]. Returns are log changes between consecutive fixes, multiplied by −100, so that a positive number means a stronger rand. The benchmark is an equal-weighted basket of five emerging-market currencies whose countries are not tier-one rugby nations: the Brazilian real, Mexican peso, Indian rupee, South Korean won and Thai baht. Australia, New Zealand, Japan, the UK and the euro area are left out because their own teams' results could move their currencies.
+
+**Spending.** Statistics South Africa's monthly survey of the food and beverages industry reports income from bar sales and from food sales separately, across restaurants and coffee shops, takeaway and fast-food outlets, and caterers [@statssa2026foodbev]. The industry total is the sum of those three types of business, and pubs and taverns are not among them, so bar sales here are the drinks sold by restaurants, takeaways and caterers. Its retail trade survey reports sales by type of retailer, including "retailers of food, beverages and tobacco in specialised stores" and general dealers [@statssa2026retail]. The specialised-store category is industry group 6220, which includes butchers and bottle stores [@rsa2010sic]: the braai end of the market. General dealers are the non-specialised stores, among them those in which food, beverages and tobacco dominate [@rsa2010sic], which is where a supermarket falls. All four series are at constant prices and not seasonally adjusted, and they start in `r month_year(min(spend_bar$date))`, the first month for which Stats SA publishes them at constant prices. Months from `r month_year(COVID_MONTHS[1])` to `r month_year(COVID_MONTHS[2])` are left out. Trading restrictions, curfews and bans on alcohol sales during the pandemic [@moultrie2021unnatural] took bar income to zero in `r month_list(zero_months)`, and sales in those months followed lockdown rules, whatever the rugby. That leaves `r spend_months` months for bar sales, in which the Springboks played `r sum(spend_bar$tests)` Tests.
+
+**GDP.** Real GDP is the seasonally adjusted quarterly series for South Africa in the IMF's International Financial Statistics [@imf2026gdp]. Growth is the quarter-on-quarter log change in percent, from `r g$quarter[1]` to `r tail(g$quarter, 1)`. Its mean is `r num(mean(g$growth))`% and its standard deviation `r num(gdp_sd_all)`%, or `r num(gdp_sd_ex)`% without the COVID-19 collapse and rebound of `r covid_quarters`. Those two quarters are left out of the regressions, which leaves `r nrow(gdp_q)` quarters holding `r sum(gdp_q$tests)` Tests.
+
+```{r}
+#| label: tbl-descriptive
+#| tbl-cap: !expr 'sprintf("Weekend returns by Springbok Test, %s to %s (basis points)", month_year(FX_START), month_year(max(panel$date)))'
+summarise_returns <- function(d) {
+  summarise(d, Weekends = n(), `Rand mean` = mean(100 * r_zar), `Rand s.d.` = sd(100 * r_zar),
+            `Rand min` = min(100 * r_zar), `Rand max` = max(100 * r_zar),
+            `Basket mean` = mean(100 * r_em, na.rm = TRUE), .groups = "drop")
+}
+of_which <- c(Win = "of which won", Loss = "of which lost", Draw = "of which drawn")
+by_result <- panel |>
+  filter(test == 1) |>
+  mutate(Weekend = of_which[as.character(outcome)]) |>
+  group_by(Weekend) |>
+  summarise_returns() |>
+  arrange(match(Weekend, of_which))
+desc <- bind_rows(
+  mutate(summarise_returns(filter(panel, test == 1)), Weekend = "With a Test"),
+  by_result,
+  mutate(summarise_returns(filter(panel, test == 0)), Weekend = "Without a Test"),
+  mutate(summarise_returns(panel), Weekend = "All weekends")
+) |>
+  relocate(Weekend)
+kable(desc, format = "pipe", digits = 1, format.args = list(big.mark = ","))
+```
+
+::: {.table-note}
+*Notes:* A weekend's return runs from the last noon fix before Saturday to the first noon fix after Sunday, usually Friday to Monday. Positive values mean a stronger currency against the US dollar. The basket is the equal-weighted mean of the real, peso, rupee, won and baht over the same dates. `r n_overlap` weekends that overlap the price window of a weekday Test are excluded.
+:::
+
+@tbl-descriptive describes the `r num(n_weekends, 0)` weekends in the sample. `r n_test_weekends` held a Springbok Test. The Springboks won `r counts[["Win"]]` of them, lost `r counts[["Loss"]]` and drew `r counts[["Draw"]]`. The rand's weekend return has a standard deviation of `r num(sd(100 * panel$r_zar), 0)` basis points, and single weekends range from `r num(min(100 * panel$r_zar), 0)` to +`r num(max(100 * panel$r_zar), 0)`.
+
+# Method {#sec-method}
+
+**One model, three timescales.** For an outcome $y$ observed over periods $t$, the model is
+
+$$
+y_t = \theta\,\text{Tests}_t + \mathbf{x}_t'\delta + \mu_{a(t)} + \nu_{s(t)} + \varepsilon_t
+$$ {#eq-main}
+
+where $\text{Tests}_t$ is the number of Springbok Tests played in the period, $\mathbf{x}_t$ holds the controls for that outcome, and $\mu$ and $\nu$ are effects for the year and for the season. Each outcome is a log change or a hundred times a log level, so $\theta$ is in log points, which read as percent for effects of a few percent or less: the change in the outcome that goes with one more Test. It is the estimand of the paper. With year and season effects in the model, $\theta$ comes from comparing a period with others of the same season that held more Tests or fewer. `r pct(share_jun_nov, 0)`% of the Tests were played between June and November, and the effects stop a seasonal or era-specific pattern from being credited to rugby.
+
+A second version asks whether the result matters on top of the occasion:
+
+$$
+y_t = \theta_W\,\text{Wins}_t + \theta_L\,\text{Losses}_t + \theta_D\,\text{Draws}_t + \mathbf{x}_t'\delta + \mu_{a(t)} + \nu_{s(t)} + \varepsilon_t
+$$ {#eq-result}
+
+and the contrast of interest is $\theta_W - \theta_L$, the difference between a Test won and a Test lost. @tbl-timescales sets out what $y$, $t$ and $\mathbf{x}$ are on each timescale.
+
+```{r}
+#| label: tbl-timescales
+#| tbl-cap: "The same model on three timescales"
+#| tbl-colwidths: [10, 24, 16, 8, 26, 16]
+retail_months <- sp_tab$specialised$tests$n
+clocks <- data.frame(
+  Period = c("Weekend", "Month", "Quarter"),
+  Outcome = c("The rand's return against the dollar from the last fix before Saturday to the first after Sunday",
+              "100 × log of real sales, in each of five series",
+              "Real GDP growth on the quarter before"),
+  Periods = c(sprintf("%s weekends from %s", num(n_weekends, 0), month_year(FX_START)),
+              sprintf("%d or %d months from %s", spend_months, retail_months, month_year(min(spend_bar$date))),
+              sprintf("%d quarters from %s", nrow(gdp_q), gdp_q$quarter[1])),
+  Tests = c(num(n_test_weekends, 0),
+            sprintf("%d or %d", hl_of("bar")$tests, hl_of("specialised")$tests),
+            num(sum(gdp_q$tests), 0)),
+  Controls = c("The basket's return over the same dates; year and calendar-month effects",
+               "Fridays, Saturdays, Sundays and days in the month; the Good Friday month; June and July 2010; year and calendar-month effects",
+               "Year and quarter-of-year effects"),
+  `Standard errors` = c("HC3", "Newey–West", "Newey–West"),
+  check.names = FALSE
+)
+kable(clocks, format = "pipe")
+```
+
+::: {.table-note}
+*Notes:* Tests are the Springbok Tests that fall in the sample's periods. A weekend holds one Test or none, so $\text{Tests}_t$ is an indicator. The monthly sample is one month longer for the two retail series than for the three food and beverage series.
+:::
+
+**The weekend.** Of the `r n_priced` Tests with a later exchange-rate fix, `r n_weekend` (`r pct(100 * n_weekend / n_priced, 0)`%) were played on a Saturday or Sunday. For these the last fix before the match is the Friday noon rate and the first fix after it the Monday noon rate, whatever the kick-off time and time zone. The remaining `r n_weekday` weekday Tests are analysed separately in @sec-checks. This is an event study in the sense of @mackinlay1997event, with the basket in the role of the market model.
+
+**The month.** The calendar terms count the month's Fridays, Saturdays, Sundays and days, and mark the month that holds Good Friday, whose date moves with Easter. $\theta$ comes from differences in the number of Tests played in the same calendar month in different years. `r ident$n_without_test` of the `r ident$n_months` months in the bar-sales sample had no Test, and no month from `r month.name[min(ident$months_never)]` to `r month.name[max(ident$months_never)]` has one. Once the controls and effects are taken out, `r pct(100 * ident$share_rwc_years, 0)`% of what is left of the variation in Test counts comes from the World Cup years `r and_list(ident$rwc_years)`. A monthly total is the right measure for the question. If a match-day spike is paid for by spending less on other days of the month, $\theta$ is zero however big the spike. Brandy and braai meat bought in the days before a Test count towards the same month unless the Test falls at its very start. Two indicators for the football World Cup that South Africa hosted in `r month_list(FIFA_2010_MONTHS)` are a positive control. That tournament brought foreign visitors [@peeters2014tourism], and a series that could not see it would say little about a rugby null. Each indicator switches on for one month and fits it exactly, which leaves a robust estimator no residual to work with, so their standard errors are the classical ones: the error in predicting that month from the others.
+
+**The quarter.** Growth is already seasonally adjusted, and the quarter-of-year effects are there because the Tests are not: a first quarter has none and a third quarter has the most.
+
+**What identifies each contrast.** $\theta$ compares periods that held a Test with periods that did not, so it is as good as that comparison. Fixtures are scheduled and not drawn at random, and anything else that sets Test periods apart is credited to the Tests. The year and season effects take out the part that repeats. Each timescale then has a placebo for the rest: the fix interval before the weekend for the rand, next month's Tests for sales and next quarter's Tests for GDP, none of which a Test can have caused. $\theta_W - \theta_L$ needs less. It is identified within Test periods, and the result is unknown until the final whistle, so whatever sets Test periods as a group apart drops out of it, unless it is correlated with the Springboks' chances. Venue and opponent are. `r pct(away_share("Loss"), 0)`% of the losses in the weekend sample were played outside South Africa, against `r pct(away_share("Win"), 0)`% of the wins, and @sec-checks adds controls for both. All tests are two-sided.
+
+**Inference.** Standard errors for the weekend regressions are heteroskedasticity-consistent [HC3, @mackinnon1985some], and those for the monthly and quarterly regressions are Newey–West [@newey1987simple], since sales and growth are autocorrelated. Both are computed with the sandwich package [@zeileis2006object]. For the rand a second p-value comes from randomisation inference [@young2019channeling]. For $\theta$, the Test indicator is shuffled among weekends in the same calendar month of the same year, the model is refitted, and the p-value is the share of `r num(N_PERMUTATIONS, 0)` shuffles that produce an estimate at least as far from zero as the real one. For $\theta_W - \theta_L$, results are shuffled among the Tests of the same year, which holds fixed which weekends had a Test. Exploratory splits of the monthly estimates are adjusted for multiple testing with Holm's procedure [@holm1979simple]. All randomisation uses the seed `r SEED`, the date of the 1995 final.
+
+**Power and equivalence.** A null result means little unless the study could have detected an effect worth caring about. For each estimate of $\theta$ the paper reports the minimum detectable effect at 5% significance and 80% power, which is `r num(mde(1), 2)` standard errors. For the rand it also reports the smallest symmetric bound that two one-sided tests reject at 5% [@lakens2017equivalence], which is the largest effect the data are still consistent with.
+
+# Results {#sec-results}
+
+## Does anything move? {#sec-headline}
+
+```{r}
+#| label: tbl-headline
+#| tbl-cap: "One more Springbok Test, on three timescales (percent of the outcome)"
+#| tbl-colwidths: [27, 12, 26, 8, 27]
+hl_tab <- hl |>
+  transmute(
+    Outcome = outcome, Period = clock,
+    `A Test is played` = sprintf("%s (%s to %s)", num(played), num(played_low), num(played_high)),
+    MDE = num(mde(played_se)),
+    `Won rather than lost` = sprintf("%s (%s to %s)", num(won), num(won_low), num(won_high))
+  )
+kable(hl_tab, format = "pipe", align = c("l", "l", "r", "r", "r"))
+```
+
+::: {.table-note}
+*Notes:* "A Test is played" is $\theta$ in @eq-main, the change in the outcome from one more Test in the period. "Won rather than lost" is $\theta_W - \theta_L$ in @eq-result. Both are in percent of the outcome, and in percentage points of quarter-on-quarter growth for GDP, with 95% confidence intervals in parentheses. MDE is the minimum detectable effect for "a Test is played" at 5% significance and 80% power. Samples, controls and standard errors are in @tbl-timescales. Sources: World Rugby; Federal Reserve H.10 and IMF International Financial Statistics via FRED; Stats SA P6420 and P6242.1.
+:::
+
+@tbl-headline is the paper in one table. None of the six estimates of what a Test does can be told from zero, and none of the six estimates of what winning adds. The largest effect of a Test in percent is on bar sales, `r num(hl_of("bar")$played)`% of a month's takings, with an interval that runs from `r num(hl_of("bar")$played_low)`% to `r num(hl_of("bar")$played_high)`%. The smallest is at the butchers and bottle stores, where the estimate is `r num(hl_of("specialised")$played)`%.
+
+```{r}
+#| label: fig-headline
+#| fig-cap: "The two contrasts on each outcome, in standard deviations. Each estimate in @tbl-headline is divided by the standard deviation of what its regression leaves unexplained, which puts a weekend of the rand, a month of sales and a quarter of GDP on one axis. Bars are 95% confidence intervals. Sources: as for @tbl-headline."
+#| fig-height: 4
+headline_rows <- bind_rows(
+  hl |> transmute(label = outcome, contrast = CONTRAST_PLAYED, estimate = played / sd,
+                  conf_low = played_low / sd, conf_high = played_high / sd),
+  hl |> transmute(label = outcome, contrast = CONTRAST_WON, estimate = won / sd,
+                  conf_low = won_low / sd, conf_high = won_high / sd)
+)
+fig_contrasts(headline_rows, "Effect of one Test, in standard deviations of the outcome (95% CI)")
+```
+
+The percentages are not comparable across rows, because a weekend's move in the rand and a month's sales at a bottle store vary by very different amounts. @fig-headline divides each estimate by the standard deviation of what its regression leaves unexplained in an ordinary period. On that scale a Test is worth between `r num(min(hl$played / hl$sd))` and `r num(max(hl$played / hl$sd))` of a standard deviation, and winning between `r num(min(hl$won / hl$sd))` and `r num(max(hl$won / hl$sd))`. The minimum detectable effects of a Test run from `r num(min(mde(hl$played_se) / hl$sd))` to `r num(max(mde(hl$played_se) / hl$sd))` of a standard deviation, so the six designs could each have seen an effect of a third of an ordinary period's variation or less. The sections below take the timescales one at a time.
+
+## The weekend: the rand {#sec-rand}
+
+```{r}
+#| label: tbl-main
+#| tbl-cap: "Weekend rand returns and Springbok Tests"
+cell <- function(m, term) {
+  r <- row_of(m$table, term)
+  c(bp(r$estimate), sprintf("(%s)", bp(r$se)))
+}
+cell_sd <- function(m, term) {
+  r <- row_of(m$table, term)
+  c(sprintf("%.3f", r$estimate), sprintf("(%.3f)", r$se))
+}
+cols <- lapply(names(res$main), function(nm) {
+  one <- res$played[[nm]]
+  two <- res$main[[nm]]
+  f <- if (nm == "(4)") cell_sd else cell
+  em_term <- if (nm == "(4)") "z_em" else "r_em"
+  b <- coef(one$fit)
+  c(f(one, "Test played"), f(two, "Win"), f(two, "Loss"), f(two, "Win - Loss"),
+    if (em_term %in% names(b)) sprintf("%.2f", b[[em_term]]) else "",
+    if (nm %in% c("(3)", "(4)")) "Yes" else "No",
+    num(one$n, 0), sprintf("%.3f", summary(one$fit)$r.squared))
+})
+tab <- data.frame(
+  term = c("A Test is played", "", "Win", "", "Loss", "", "Win − Loss", "", "Benchmark coefficient",
+           "Year and month effects", "Weekends", "R²"),
+  do.call(cbind, cols)
+)
+names(tab) <- c(" ", names(res$main))
+kable(tab, format = "pipe", align = c("l", rep("r", 4)))
+```
+
+::: {.table-note}
+*Notes:* OLS estimates over weekends. The first row is $\theta$ from @eq-main; the win, loss and win-minus-loss rows are from @eq-result, where a win and a loss are each measured against weekends without a Test. Columns (1) to (3) are in basis points of the rand's Friday-to-Monday return against the dollar; positive means a stronger rand. Column (4) divides each weekend's rand and benchmark returns by the standard deviation of the rand's daily returns over the previous `r VOL_WINDOW_DAYS` fixes, so its coefficients are in standard deviations. HC3 standard errors in parentheses. The benchmark coefficient and R² are those of @eq-main. Draws are in @eq-result and not reported.
+:::
+
+@tbl-main gives the rand's results and @fig-returns shows the weekends behind them. Column (3) is the preferred specification. A weekend with a Test differs from other weekends by `r bp(P$estimate)` basis points (95% CI `r bp(P$conf_low)` to `r bp(P$conf_high)`; `r p_eq(P$p_value)`). Shuffling the Test indicator among the weekends of each month gives a randomisation p-value of `r pval(ri_p)` (@fig-randomisation). The benchmark matters to the precision more than to the answer. In column (2) it explains `r pct(r2_benchmark, 0)`% of the variation in weekend returns, with a coefficient of `r num(coef(res$played[["(2)"]]$fit)[["r_em"]])`: on a typical weekend the rand moves a little more than the basket. Standardising returns by recent volatility, in column (4), changes nothing of substance.
+
+```{r}
+#| label: fig-returns
+#| fig-cap: !expr 'sprintf("Weekend rand returns with and without a Springbok Test. Each dot is one weekend; the black point and bar are the group mean and its 95%% confidence interval. Returns are net of the emerging-market basket, using the benchmark coefficient from column (3) of @tbl-main, with positive values meaning a stronger rand. Draws (n = %d) are omitted. Sources: World Rugby; Federal Reserve H.10 via FRED.", counts[["Draw"]])'
+fig_weekend_returns(panel, res$beta_em)
+```
+
+The minimum detectable effect is `r bp(mde_p)` basis points and the equivalence bound `r bp(eq_p)`. The data rule out a Test moving the rand over the weekend by more than about `r bp(eq_p, 0)` basis points in either direction, which at the latest fix of R`r num(last_fix$value, 2)` per dollar is about `r num(cents(eq_p), 1)` cents. For comparison, @edmans2007sports estimated rugby losses at −9.5 basis points on stock markets, and @geyerklingeberg2018do put the corrected loss effect for national football teams near −5. Effects of that size are smaller than this design can reliably detect, so a rugby effect on that scale may exist. A Springbok effect on the rand big enough to notice at the till has not shown up in `r n_years` years.
+
+```{r}
+#| label: fig-randomisation
+#| fig-cap: !expr 'sprintf("Randomisation inference for a Test being played. The histogram shows the estimate from %s refits of column (3) of @tbl-main with the Test indicator shuffled among weekends in the same month and year; the green line is the estimate from the real fixture list. Two-sided p-value: %s.", num(N_PERMUTATIONS, 0), pval(ri_p))'
+#| fig-height: 3
+fig_randomisation(res$ri_played$draws[, "Test played"], P$estimate,
+                  "Test-weekend estimate under shuffled fixtures (basis points)")
+```
+
+A Test could also move the rand without a direction, up after some matches and down after others, and $\theta$ would average that away. The size of the move would not. Net of the basket, the rand moves an average of `r bp(res$size$mean_without, 0)` basis points in one direction or the other over a weekend without a Test. Regressing the size of each weekend's move on the Test indicator, with the year and month effects of column (3), gives `r bp(S$estimate)` basis points (95% CI `r bp(S$conf_low)` to `r bp(S$conf_high)`; `r p_eq(S$p_value)`), so Test weekends move the rand no further than other weekends do.
+
+The result adds nothing to the occasion. Measured against weekends without a Test, a win changes the weekend return by `r bp(W$estimate)` basis points and a loss by `r bp(L$estimate)`, and the difference between them is `r bp(D$estimate)` basis points (95% CI `r bp(D$conf_low)` to `r bp(D$conf_high)`; `r p_eq(D$p_value)`). Shuffling results among the Tests of the same year gives `r pval(ri_d)`. A win worth more than `r bp(D$conf_high)` basis points over a loss lies outside the interval, a limit that is tight because the estimate sits on the wrong side of zero; the symmetric equivalence bound, which does not lean on the sign, is `r bp(eq_d)` basis points. The point estimates have the rand slightly stronger after a loss than after a win, which is the wrong way round for the sentiment story. A loss-loving rand is not a finding this paper will defend, and the Springboks need not change their approach on its account. @sec-checks shows where it comes from.
+
+## Checks on the rand {#sec-checks}
+
+@fig-profile takes both contrasts through the days around the weekend, and @fig-samples through subsamples.
+
+```{r}
+#| label: fig-profile
+#| fig-cap: "Both contrasts in the fix intervals around the weekend. Each point is the estimate from column (3) of @tbl-main with the return over that interval as the dependent variable; bars are 95% confidence intervals from HC3 standard errors. The two intervals above the weekend close before kick-off. Sources: World Rugby; Federal Reserve H.10 via FRED."
+#| fig-height: 3.8
+fix_days <- c("Mon", "Tue", "Wed", "Thu", "Fri")
+profile_label <- function(k) {
+  where <- if (k == 0) {
+    "The weekend"
+  } else {
+    paste(c("One interval", "Two intervals")[abs(k)], if (k < 0) "before" else "after")
+  }
+  sprintf("%s (%s–%s)", where, fix_days[(k - 1) %% 5 + 1], fix_days[k %% 5 + 1])
+}
+profile_rows <- res$profile |>
+  filter(term %in% c("Test played", "Win - Loss")) |>
+  arrange(offset) |>
+  mutate(label = vapply(offset, profile_label, character(1)),
+         contrast = if_else(term == "Test played", CONTRAST_PLAYED, CONTRAST_WON),
+         across(c(estimate, conf_low, conf_high), ~ 100 * .x))
+fig_contrasts(profile_rows, "Effect on the rand's return over the interval (basis points, 95% CI)")
+```
+
+**The day before.** The regression can be run on any fix interval, and @fig-profile runs it on the two before the weekend and the two after. Nothing a Test does can show in the intervals before it, and the fixture list is published months ahead, so there is no news in them either. Four of the five intervals show nothing for the Test indicator. The fifth is the one that closes before kick-off. On the Friday before a Test weekend the rand is `r bp(abs(plc$preferred$estimate))` basis points weaker than on other Fridays (`r p_eq(plc$preferred$p_value)`, or `r pval(friday_bonferroni)` after a Bonferroni adjustment for the ten estimates in @fig-profile). @tbl-placebo tries to make it go away. Winsorising the returns, replacing the month effects with an effect for each week of the year and comparing only weekends in the same month of the same year all leave it in place. It has the same sign in both halves of the sample, and before home Tests and away Tests alike (`r bp(row_of(plc_venue, "Home Test")$estimate)` and `r bp(row_of(plc_venue, "Away Test")$estimate)` basis points). The weekend does not undo it: from the Thursday fix to the Monday fix, Test weekends are `r bp(through$estimate)` basis points against the rest (`r p_eq(through$p_value)`). This paper has no explanation for it.
+
+```{r}
+#| label: tbl-placebo
+#| tbl-cap: "The interval before the weekend: Test weekends against other weekends (basis points)"
+#| tbl-colwidths: [48, 13, 15, 10, 14]
+placebo_labels <- c(
+  preferred = "Preferred specification",
+  winsorised = sprintf("Winsorised at the %s%% and %s%% quantiles", 100 * WINSOR_TAIL, 100 * (1 - WINSOR_TAIL)),
+  week_of_year = "Week-of-year effects in place of months",
+  setNames(sub("-", "–", names(res$periods)), names(res$periods)),
+  cells = "Within the same month and year",
+  earlier = "One interval earlier (Wed–Thu)",
+  weekend = "The weekend itself"
+)
+placebo_tab <- bind_rows(lapply(names(placebo_labels), function(nm) {
+  x <- res$placebo[[nm]]
+  tibble(Check = placebo_labels[[nm]], Estimate = bp(x$table$estimate), `Std. error` = bp(x$table$se),
+         p = pval(x$table$p_value), Weekends = num(x$n, 0))
+}))
+kable(placebo_tab, format = "pipe", align = c("l", "r", "r", "r", "r"))
+```
+
+::: {.table-note}
+*Notes:* Each row is $\theta$ from @eq-main, the coefficient on the indicator for a weekend with a Springbok Test. Negative means a weaker rand around Test weekends. Except in the last two rows, the dependent variable is the return over the fix interval before the weekend, normally Thursday to Friday, with the basket's return over the same interval as the benchmark. "One interval earlier" is the interval before that, normally Wednesday to Thursday. "Within the same month and year" replaces the year and month effects with one effect for each month of each year, and uses the weekends in months that had both a Test weekend and one without. HC3 standard errors.
+:::
+
+For the design, it means that Test weekends differ from other weekends in some way the controls miss, which is the weakness of asking whether a Test was played: the answer is as good as the comparison. The Friday move is not part of the weekend estimate in @tbl-main, which starts from the Friday fix. Whatever sets those Fridays apart could be at work over the weekend too, though, so the weekend estimate for a Test being played rests on a comparison this placebo calls into question. The win-minus-loss contrast is on firmer ground, since it compares Test weekends with each other. On the Friday before, it is `r bp(fD$estimate)` basis points (`r p_eq(fD$p_value)`).
+
+```{r}
+#| label: fig-samples
+#| fig-cap: "Both contrasts across samples. Points are estimates from column (3) of @tbl-main for the Tests in each sample, with all weekends without a Test as the comparison; bars are 95% confidence intervals from HC3 standard errors. Counts are Test weekends. Sources: World Rugby; Federal Reserve H.10 via FRED."
+#| fig-height: 5
+both <- function(played_tbl, result_tbl, label) {
+  bind_rows(
+    row_of(played_tbl, "Test played") |> mutate(contrast = CONTRAST_PLAYED),
+    row_of(result_tbl, "Win - Loss") |> mutate(contrast = CONTRAST_WON)
+  ) |>
+    mutate(label = label)
+}
+sample_rows <- bind_rows(
+  both(res$played_preferred$table, pref, sprintf("All Tests (%d)", n_test_weekends)),
+  bind_rows(lapply(names(res$subperiods), function(nm) {
+    years <- as.integer(strsplit(nm, "-")[[1]])
+    n <- sum(panel$test[panel$year >= years[1] & panel$year <= years[2]])
+    both(res$subperiods[[nm]]$played$table, res$subperiods[[nm]]$result$table,
+         sprintf("%s (%d)", sub("-", "–", nm), n))
+  })),
+  bind_rows(lapply(res$subgroups, function(s) {
+    both(s$table, s$table, sprintf("%s (%d)", s$table$group[1], s$counts[["test"]]))
+  }))
+) |>
+  mutate(across(c(estimate, conf_low, conf_high), ~ 100 * .x))
+fig_contrasts(sample_rows, "Effect on the rand's weekend return (basis points, 95% CI)")
+```
+
+**Home and away.** Splitting the Test weekends by venue gives `r bp(row_of(ven, "Home Test")$estimate)` basis points for Tests in South Africa and `r bp(row_of(ven, "Away Test")$estimate)` for Tests elsewhere (`r p_eq(row_of(ven, "Home Test")$p_value)` and `r p_eq(row_of(ven, "Away Test")$p_value)`), a gap of `r bp(abs(ven_gap$estimate))` basis points (`r p_eq(ven_gap$p_value)`). A Test's venue is settled long before the weekend, so this is no more a reaction to rugby than the Friday is. Much of it is the calendar. `r pct(home_in_june, 0)`% of the home Tests were played in June and `r pct(away_in_november, 0)`% of the away Tests in November, so the two are measured against different weekends without a Test. With an effect for each week of the year in place of the month effects, the gap narrows to `r bp(abs(finer_gap$estimate))` basis points (`r p_eq(finer_gap$p_value)`), and the estimate for all Tests is `r bp(finer_played$estimate)` (`r p_eq(finer_played$p_value)`). It is one split among the `r length(res$subgroups)` in @fig-samples and is read here as exploratory.
+
+**The result.** @fig-profile also follows the win-minus-loss contrast. A difference of much the same size as the weekend's appears two intervals before the match (`r bp(prof("Win - Loss", -2)$estimate)` basis points), where the result cannot have caused it, and again in the interval after the weekend (`r bp(prof("Win - Loss", 1)$estimate)`). That fits a difference in when and where the Springboks lose better than it fits a reaction to the result. With an indicator for Tests played outside South Africa, the weekend contrast falls to `r bp(venue_d$estimate)` basis points (`r p_eq(venue_d$p_value)`). Adding opponent effects takes it to `r bp(opp_d$estimate)` (`r p_eq(opp_d$p_value)`); the `r length(res$common_opponents)` opponents with `r OPPONENT_MIN_TESTS` or more weekend Tests get an effect each and the rest share one.
+
+**Bigger matches.** If a Test moved the rand, it should show most at the matches people care about most. The estimate for World Cup matches is `r bp(sg("World Cup matches", "Test played")$estimate)` basis points and for World Cup knockouts `r bp(sg("World Cup knockouts", "Test played")$estimate)`, with confidence intervals `r bp(sg("World Cup matches", "Test played")$conf_high - sg("World Cup matches", "Test played")$conf_low, 0)` and `r bp(sg("World Cup knockouts", "Test played")$conf_high - sg("World Cup knockouts", "Test played")$conf_low, 0)` basis points wide that both include zero. Winning them rather than losing is worth `r bp(sg("World Cup matches", "Win - Loss")$estimate)` and `r bp(sg("World Cup knockouts", "Win - Loss")$estimate)` basis points, the Springboks having lost only `r sg("World Cup knockouts", "Win - Loss")$counts[["loss"]]` World Cup knockout matches on a weekend in the sample. Against New Zealand, where the Springbok record since March 1995 is `r plural(nz[["Win"]], "win", "wins")`, `r plural(nz[["Loss"]], "loss", "losses")` and `r plural(nz[["Draw"]], "draw", "draws")`, a Test is worth `r bp(sg("Against New Zealand", "Test played")$estimate)` basis points and a win over a loss `r bp(sg("Against New Zealand", "Win - Loss")$estimate)`.
+
+**Margin.** Adding the points margin to the Test indicator gives `r num(100 * res$margin_fit$table$estimate, 2)` basis points per point (95% CI `r num(100 * res$margin_fit$table$conf_low, 2)` to `r num(100 * res$margin_fit$table$conf_high, 2)`). The margins run from a `r abs(heaviest$margin)`-point loss to `r heaviest$opponent` in `r format(heaviest$match_date, "%Y")` to a `r widest$margin`-point win over `r widest$opponent` in `r format(widest$match_date, "%Y")`, and the rand took no visible interest in either end.
+
+**Weekday Tests.** The `r n_weekday` Tests played on weekdays, `r sum(res$weekday$rwc)` of them at World Cups, are measured from the last fix before the match date to the first fix after it, which brackets the match whatever its kick-off time. The rand's return net of the benchmark averaged `r bp(mean(weekday_ar))` basis points across them, with a standard deviation of `r bp(sd(weekday_ar), 0)`.
+
+## The month: braai economics {#sec-spending}
+
+The braai hypothesis is about the occasion. Brandy and braai meat are bought ahead of the game and bars fill during it, whoever wins. If that spending is new, the month that holds the Test should show it.
+
+```{r}
+#| label: tbl-spending
+#| tbl-cap: !expr 'sprintf("Monthly real sales and Springbok Tests, %s to %s", month_year(min(spend_bar$date)), month_year(max(res$spend$date)))'
+#| tbl-colwidths: [22, 16, 18, 8, 12, 14, 10]
+outcome_labels <- c(bar = "Bar sales", food = "Food sales", total = "All F&B income",
+                    specialised = "Specialised stores", general = "General dealers")
+sp_main <- bind_rows(lapply(names(outcome_labels), function(o) {
+  x <- sp_tab[[o]]$tests
+  pt <- row_of(x$table, "Per Test"); wc <- row_of(x$table, "2010 World Cup, June")
+  tibble(Series = outcome_labels[[o]],
+         `Per Test` = sprintf("%s (%s)", num(pt$estimate), num(pt$se)),
+         `95% CI` = sprintf("%s to %s", num(pt$conf_low), num(pt$conf_high)),
+         `MDE` = num(mde(pt$se)),
+         `MDE, R million` = num(rand_m(o, mde(pt$se)), 0),
+         `June 2010` = sprintf("%s (%s)", num(wc$estimate, 1), num(wc$se, 1)),
+         `Months` = as.character(x$n))
+}))
+kable(sp_main, format = "pipe", align = c("l", "r", "r", "r", "r", "r", "r"))
+```
+
+::: {.table-note}
+*Notes:* OLS estimates of @eq-main on monthly data. Coefficients are 100 times the change in the log of the month's real sales, which reads as percent for small values; the June 2010 coefficient for bar sales, `r num(fifa_jun("bar")$estimate, 1)`, is a rise of `r pct(lp_pct(fifa_jun("bar")$estimate))`%. Standard errors are in parentheses: Newey–West for the per-Test effect, classical for June 2010, which is an indicator for a single month. Bar and food sales are income from bar and food sales in restaurants and coffee shops, takeaway and fast-food outlets, and caterers; "All F&B income" is that industry's total income. "Specialised stores" are retailers of food, beverages and tobacco in specialised stores (butchers and bottle stores among them). "Per Test" is the effect of one more Springbok Test in the month. MDE is the minimum detectable effect at 5% significance and 80% power, in percent and in R million at the series' average monthly sales over its last `r SPEND_LEVEL_MONTHS` months, at constant prices. "June 2010" is the football World Cup month, the positive control. Months from `r month_year(COVID_MONTHS[1])` to `r month_year(COVID_MONTHS[2])` are excluded. Sources: Stats SA P6420 and P6242.1; World Rugby.
+:::
+
+```{r}
+#| label: fig-spending
+#| fig-cap: "One more Springbok Test in a month beside the 2010 football World Cup. Points are estimates from @eq-main of the effect on the month's real sales, converted from log points to percent; bars are 95% confidence intervals, from Newey–West standard errors for a Test and classical ones for June 2010. Sources: Stats SA P6420 and P6242.1; World Rugby."
+#| fig-height: 3.4
+fig_rows <- bind_rows(lapply(c("bar", "food", "specialised", "general"), function(o) {
+  x <- sp_tab[[o]]$tests$table
+  bind_rows(
+    row_of(x, "Per Test") |> mutate(what = "One more Springbok Test"),
+    row_of(x, "2010 World Cup, June") |> mutate(what = "June 2010 (football World Cup)")
+  ) |> mutate(outcome = outcome_labels[[o]])
+})) |>
+  mutate(across(c(estimate, conf_low, conf_high), lp_pct))
+fig_spending(fig_rows)
+```
+
+@tbl-spending and @fig-spending give the results. One more Springbok Test in a month changes real bar sales by `r pct(bar_test$estimate, 2)`% (95% CI `r pct(bar_test$conf_low, 2)` to `r pct(bar_test$conf_high, 2)`). The equivalence bound is `r pct(eq_bar, 2)`%, so the data rule out a Test adding more than that to a month's bar sales, which is `r num(eq_bar / 100 * days_per_month, 2)` of an average day's takings. Food sales in the same outlets, sales at specialised food, drink and tobacco stores and sales at general dealers all move by less than half a percent either way per Test. At the specialised stores, the butchers and bottle stores, the estimate is `r pct(spec_test$estimate, 2)`%, with an equivalence bound of `r pct(eq_spec, 2)`%. Ending the sample in `r month_year(SPENDING_ALT_END)` gives `r pct(short_test$estimate, 2)`% for bar sales.
+
+In rand the series are not equally sharp. The specialised stores sell about R`r num(res$spend_level[["specialised"]] / 1000, 1)` billion a month, so their interval runs from −R`r num(abs(rand_m("specialised", spec_test$conf_low)), 0)` million to R`r num(rand_m("specialised", spec_test$conf_high), 0)` million per Test, and the design could reliably detect about R`r num(rand_m("specialised", mde(spec_test$se)), 0)` million. General dealers sell about R`r num(res$spend_level[["general"]] / 1000, 0)` billion a month, and there the smallest effect the design could detect is R`r num(rand_m("general", mde(gen_test$se)), 0)` million per Test. Braai meat and brandy bought with the weekly shop at a supermarket land in that series, where an effect of tens of millions of rand would pass unseen.
+
+Bar and food sales can see an event. In June 2010 real bar sales were `r pct(lp_pct(fifa_jun("bar")$estimate), 0)`% higher than the calendar and the year predict (`r p_eq(fifa_jun("bar")$p_value)`) and food sales `r pct(lp_pct(fifa_jun("food")$estimate), 0)`% (`r p_eq(fifa_jun("food")$p_value)`). With nothing in the model to mark it, June 2010 ranks `r ordinal(fifa_rank$bar$rank)` of the `r fifa_rank$bar$n` months by the size of its studentised residual in bar sales, and `r ordinal(fifa_rank$food$rank)` in food sales. That tournament brought an estimated 220,000 extra arrivals from outside the Southern African Development Community [@peeters2014tourism]: money from outside the economy.
+
+The two retail series are a weaker control. Sales at specialised stores were `r pct(lp_pct(fifa_jun("specialised")$estimate), 0)`% higher that June and at general dealers `r pct(lp_pct(fifa_jun("general")$estimate), 0)`%, and neither can be told from an ordinary month (`r p_eq(fifa_jun("specialised")$p_value)` and `r p_eq(fifa_jun("general")$p_value)`; `r ordinal(fifa_rank$specialised$rank)` and `r ordinal(fifa_rank$general$rank)` of `r fifa_rank$specialised$n` months). General dealers did sell `r pct(lp_pct(fifa_jul("general")$estimate), 0)`% more in July 2010 (`r p_eq(fifa_jul("general")$p_value)`); the specialised stores show nothing in either month. For butchers and bottle stores the positive control did not work, so the null there rests on the minimum detectable effect in @tbl-spending.
+
+The calendar does show up at those stores. A fifth Saturday in a month adds `r pct(lp_pct(saturday("specialised")$estimate))`% to sales at specialised stores and `r pct(lp_pct(saturday("total")$estimate))`% to all food and beverage income, in both cases significantly more than an extra Test does (`r p_eq(saturday_gap("specialised")$p_value)` and `r p_eq(saturday_gap("total")$p_value)`). For bar sales the estimate is `r pct(lp_pct(saturday("bar")$estimate))`%, and its gap of `r pct(saturday_gap("bar")$estimate)` log points over an extra Test is not significant (`r p_eq(saturday_gap("bar")$p_value)`). The month with Good Friday in it adds `r pct(lp_pct(bar_easter$estimate))`% to bar sales.
+
+```{r}
+#| label: tbl-spending-splits
+#| tbl-cap: "Splits of the monthly spending estimates (percent of the month's real sales)"
+split_cols <- c(`Win` = "Per win", `Loss` = "Per loss", `Home` = "Per home Test",
+                `Away` = "Per away Test", `Knockout` = "World Cup knockout, extra",
+                `Next month` = "Tests next month")
+split_rows <- bind_rows(explore, lead)
+splits <- bind_rows(lapply(names(outcome_labels), function(o) {
+  x <- split_rows[split_rows$outcome == o, ]
+  vals <- vapply(split_cols, function(term) {
+    r <- x[x$term == term, ]
+    sprintf("%s (%s)", num(r$estimate), num(r$se))
+  }, character(1))
+  tibble(Series = outcome_labels[[o]], !!!as.list(vals))
+}))
+kable(splits, format = "pipe", align = c("l", rep("r", length(split_cols))))
+```
+
+::: {.table-note}
+*Notes:* Estimates from variants of @eq-main on monthly data, per match, Newey–West standard errors in parentheses. "Win" and "Loss" are $\theta_W$ and $\theta_L$ from @eq-result; "Home" and "Away" split the Test count by venue in the same way. "Knockout" is the additional effect of a World Cup knockout match over an ordinary Test. "Next month" is the placebo: the number of Tests in the following month, which cannot have caused this month's sales. Sources: Stats SA P6420 and P6242.1; World Rugby.
+:::
+
+The result does not matter here either. Per win, bar sales change by `r pct(bar_win$estimate, 2)`% and per loss by `r pct(bar_loss$estimate, 2)`%. The win-minus-loss difference of `r num(bar_wl$estimate, 2)` points (`r p_eq(bar_wl$p_value)`) leans the way Business Insider SA predicted, and at the specialised stores it leans the other way (`r num(spec_wl$estimate, 2)` points, `r p_eq(spec_wl$p_value)`). Across the `r nrow(explore)` exploratory estimates in the win, loss, home, away and knockout columns of @tbl-spending-splits, `r sum(explore$p_value < 0.05)` have p-values below 0.05, about what chance alone would give (`r num(0.05 * nrow(explore), 1)` expected), and none survives Holm's adjustment.
+
+The placebo is less clean. Next month's Tests cannot have caused this month's sales, yet a Test next month goes with `r pct(lead_of("total")$estimate, 2)`% more food and beverage income this month (`r p_eq(lead_of("total")$p_value)`, or `r pval(lead_of("total")$holm)` after Holm's adjustment across the five series). For bar sales the placebo estimate of `r pct(lead_of("bar")$estimate, 2)`% is larger than the `r pct(bar_test$estimate, 2)`% it is a placebo for. Year and month effects do not capture the season perfectly, and what they miss is about the size of the per-Test estimates. That is a further reason to read those estimates as noise around zero.
+
+The card data and the monthly totals are consistent with each other. The spike around a big match is real, and it does not show up in the month's sales. Either it is short, or it is paid for by other days, or both. For drinks at restaurants, takeaways and caterers, and at butchers and bottle stores, a Test month is an ordinary month. Pubs and taverns are not among the food and beverages survey's types of business, and the surveys cover the businesses in Stats SA's samples, so spending at pubs, at informal taverns and shebeens, and by fans abroad may not be captured.
+
+## The quarter: output {#sec-gdp}
+
+```{r}
+#| label: tbl-gdp-tests
+#| tbl-cap: "Quarterly real GDP growth and Springbok Tests (percentage points of growth)"
+#| tbl-colwidths: [38, 12, 13, 19, 8, 10]
+gdp_rows <- list(
+  list("One more Test", gdp_fit$tests, "Per Test"),
+  list("One more win", gdp_fit$result, "Per win"),
+  list("One more loss", gdp_fit$result, "Per loss"),
+  list("Win minus loss", gdp_fit$result, "Win - Loss"),
+  list("Placebo: one more Test next quarter", gdp_fit$lead, "Tests next quarter"),
+  list(sprintf("One more Test, with %s", covid_quarters), gdp_fit$all_quarters, "Per Test")
+)
+gdp_tests_tab <- bind_rows(lapply(gdp_rows, function(x) {
+  r <- row_of(x[[2]]$table, x[[3]])
+  tibble(Contrast = x[[1]], Estimate = num(r$estimate, 3), `Std. error` = num(r$se, 3),
+         `95% CI` = sprintf("%s to %s", num(r$conf_low, 3), num(r$conf_high, 3)),
+         p = pval(r$p_value), Quarters = as.character(x[[2]]$n))
+}))
+kable(gdp_tests_tab, format = "pipe", align = c("l", "r", "r", "r", "r", "r"))
+```
+
+::: {.table-note}
+*Notes:* OLS estimates of @eq-main and @eq-result on quarterly data, with year and quarter-of-year effects and Newey–West standard errors. The dependent variable is quarter-on-quarter growth of seasonally adjusted real GDP in percent. All rows but the last leave out `r covid_quarters`. Sources: IMF International Financial Statistics via FRED; World Rugby.
+:::
+
+One more Test in a quarter goes with `r num(gdp_test$estimate)` percentage points of growth (95% CI `r num(gdp_test$conf_low)` to `r num(gdp_test$conf_high)`; `r p_eq(gdp_test$p_value)`). The placebo is clean: next quarter's Tests go with `r num(gdp_lead$estimate, 3)` points (`r p_eq(gdp_lead$p_value)`). Winning rather than losing is worth `r num(gdp_wl$estimate)` points (`r num(gdp_wl$conf_low)` to `r num(gdp_wl$conf_high)`). With the two 2020 quarters left in, the standard error is `r num(gdp_all$se / gdp_test$se, 0)` times as large and the estimate says nothing.
+
+The minimum detectable effect is `r num(mde(gdp_test$se))` percentage points of a quarter's growth per Test. Against the latest quarter's nominal GDP of R`r num(nominal_latest / 1e6, 2)` trillion, that is about R`r num(nominal_latest * mde(gdp_test$se) / 100 / 1000, 1)` billion. The quarter is a blunt instrument for a braai. It could see a Test that moved the whole economy and nothing as small as what the monthly sales leave room for.
+
+## The four titles {#sec-titles}
+
+The usual evidence for a Springbok effect is not an average over Tests. It is four weeks, the ones after the World Cup finals of 1995, 2007, 2019 and 2023, and @tbl-finals shows the rand and the basket after each, to the Monday fix and over the following week.
+
+```{r}
+#| label: tbl-finals
+#| tbl-cap: "The rand after the four World Cup finals won (percent)"
+#| tbl-colwidths: [7, 26, 11, 12, 10, 11, 12, 11]
+finals_tab <- ff |>
+  left_join(res$finals |> select(final = match_date, opponent, sa_score, opp_score), by = "final") |>
+  transmute(Year = format(final, "%Y"),
+            Result = sprintf("%d–%d v %s", sa_score, opp_score, opponent),
+            `Rand, Mon` = zar_monday, `Basket, Mon` = em_monday, `Net, Mon` = ar_monday,
+            `Rand, week` = zar_week, `Basket, week` = em_week, `Net, week` = ar_week)
+kable(finals_tab, format = "pipe", digits = 2)
+```
+
+::: {.table-note}
+*Notes:* Log changes in percent from the Friday noon fix before the final, positive meaning a stronger currency against the dollar. "Mon" runs to the Monday fix after the final and "week" to the following Friday. "Net" is the rand's change less the benchmark coefficient (`r num(res$beta_em)`) times the basket's change. Sources: World Rugby; Federal Reserve H.10 via FRED.
+:::
+
+Two of the four weeks fit the story told about them, and both had other news. In 2007 the rand gained `r pct(ff$zar_week[2])`% over the week against `r pct(ff$em_week[2])`% for the basket. That is a little more than the blog post's 4.3%, which may have used different fixes. The weekend itself contributed nothing: at Monday's fix the rand was `r pct(abs(ff$zar_monday[2]))`% weaker than on the Friday before the final. By Wednesday's fix it was `r pct(icbc_before$zar_cum)`% stronger than on that Friday, and it added another `r pct(icbc_end$zar_cum - icbc_before$zar_cum)` points by the end of the week. Standard Bank had issued a cautionary announcement on the Tuesday that talks were under way, and the ICBC offer for a fifth of the bank was announced on the Thursday [@allen2007chinese]. The Sowetan reported the next morning that "news of the deal saw the rand strengthen to R6,55 to the dollar yesterday" [@laing2007standard]. That accounts for the end of the week. Whether the cautionary moved the rand on the Tuesday and Wednesday, these sources do not say.
+
+In 2019 the rand gained `r pct(ff$zar_monday[3])`% from Friday to Monday while the basket lost `r pct(abs(ff$em_monday[3]))`%. On the Friday, Moody's had affirmed South Africa's Baa3 rating, one notch above non-investment grade, and changed its outlook to negative [@treasury2019moodys]. An analyst quoted by BusinessTech put the decision "late on Friday evening" [@businesstech2019rand]. Noon in New York that day was `r moodys_fix_local` in Johannesburg, so the Monday fix was the first to price it. Reuters reported on the Monday that the rand and government bonds had jumped after the decision, which a small minority of investors had expected to be a downgrade or a move to "on watch" [@reuters2019rand]. It gave two other supports for the rally: appetite for high-yielding emerging-market assets, and the sell-off of the week before, when the medium-term budget brought what it called the rand's largest daily fall in over a year. The fixes show that sell-off. The rand lost `r pct(abs(budget_to_friday))`% over the three fixes to that Friday's, `r pct(abs(budget_fix$r_zar))`% of it on the Wednesday of the budget, and after Monday's gain it was still `r pct(abs(budget_to_monday))`% below where it stood before the budget. BusinessTech's report that morning led with progress in trade talks between the United States and China alongside the rating, and quoted the same analyst as saying most investors felt the decision had been priced in [@businesstech2019rand]. The basket did not rise with the rand, which favours the news that was specific to South Africa.
+
+After the 1995 and 2023 finals the rand moved by at most `r pct(max(abs(ff$ar_monday[c(1, 4)])), 2)`% net of the basket to the Monday. Four weeks with known confounders cannot separate rugby from banking deals and credit ratings. The weekend regressions in @tbl-main average over hundreds of Tests, and they find nothing.
+
+```{r}
+#| label: fig-gdp
+#| fig-cap: "Quarterly real GDP growth, with the quarters that held a World Cup final and the quarters after them marked. The vertical axis is cut at ±3%; quarters beyond it are labelled. Source: IMF International Financial Statistics via FRED (series NGDPRSAXDCZAQ)."
+fig_gdp(g, res$rwc_quarters)
+```
+
+```{r}
+#| label: tbl-gdp
+#| tbl-cap: "Quarterly real GDP growth in World Cup quarters"
+gdp_tab <- data.frame(
+  Treated = rep(c("Quarter of the final", "Quarter after the final"), 2),
+  Sample = rep(c("All quarters", paste("Without", and_list(quarter_label(res$covid)))), each = 2),
+  Quarters = rep(c(nrow(g), nrow(g) - length(res$covid)), each = 2),
+  `Difference (pp)` = c(gt$final_all$observed, gt$next_all$observed, gt$final_ex$observed, gt$next_ex$observed),
+  p = c(gt$final_all$p_value, gt$next_all$p_value, gt$final_ex$p_value, gt$next_ex$p_value),
+  `MDE (pp)` = c(gt$final_all$mde, gt$next_all$mde, gt$final_ex$mde, gt$next_ex$mde),
+  check.names = FALSE
+)
+kable(gdp_tab, format = "pipe", digits = c(0, 0, 0, 2, 3, 2))
+```
+
+::: {.table-note}
+*Notes:* Difference between mean quarter-on-quarter growth in the four treated quarters and in the rest, in percentage points. p-values from `r num(N_PERMUTATIONS, 0)` random draws of four quarters. MDE is the minimum detectable difference at 5% significance and 80% power. Source: IMF International Financial Statistics via FRED.
+:::
+
+The titles do not show in output either (@fig-gdp and @tbl-gdp). Growth in the quarters of the four finals was `r num(abs(gt$final_all$observed))` percentage points below the average for other quarters (p = `r pval(gt$final_all$p_value)`), and in the quarters after them `r num(abs(gt$next_all$observed))` points below (p = `r pval(gt$next_all$p_value)`). The quarter of the 2019 final and the one after it both shrank slightly; the quarters around the other three finals all grew. Three of the finals were played in October or November, with `r min(days_left[-1])` to `r max(days_left[-1])` days of the quarter still to run. The 1995 final was played `r days_left[1]` days before the end of its quarter, in a tournament South Africa hosted, so for 1995 the quarter of the final measures hosting and the quarter after it is the first under a title. With four titles the comparison is weak. Even without the two 2020 quarters, a title would have needed to add about `r num(gt$final_ex$mde, 1)` percentage points to a quarter's growth to be reliably detected, `r num(gt$final_ex$mde / mean(g$growth[!g$date %in% res$covid]), 1)` times the average quarter's growth over the sample.
+
+## A regression to ignore {#sec-levels}
+
+Regressing the logarithm of the rand's annual average exchange rate on the number of World Cups won to date, `r min(res$annual$year)` to `r max(res$annual$year)`, gives a coefficient of `r num(lev["titles", "Estimate"], 3)` (t = `r num(lev["titles", "t value"], 1)`, R² = `r num(summary(res$levels_fit)$r.squared, 2)`). Taken at face value, each title has raised the rand price of a dollar by `r pct(lev_effect, 0)`%, which is `r pct(lev_loss, 0)`% off what a rand buys, and @fig-levels shows how well the step function fits.
+
+```{r}
+#| label: fig-levels
+#| fig-cap: "The rand and the World Cup model. The black line is the rand's annual mean exchange rate against the dollar (higher means weaker); the green step is the fitted value from regressing its logarithm on the number of World Cups won to date. Years of titles are marked at the top. Sources: Federal Reserve H.10 via FRED; World Rugby."
+fig_levels(res$annual, res$levels_fit)
+```
+
+Both series trend upwards over the period. The rand weakened for reasons that include inflation differentials, commodity prices and domestic policy, and the title count can only rise. Regressing one trending series on another produces large t-statistics whether or not the two are related, as @granger1974spurious showed with random walks. In annual changes the relationship disappears: the coefficient is `r num(dif[2, "Estimate"], 3)` with a standard error of `r num(dif[2, "Std. Error"], 3)`, and R² falls to `r num(summary(res$diffs_fit)$r.squared, 3)`. There is no evidence that the Springboks have cost the rand anything.
+
+# The holiday {#sec-holiday}
+
+The 2023 public holiday is the one economic consequence of a Springbok Test that is not in doubt. Two days after the 2023 final, the President announced that `r long_date(HOLIDAY_2023)` would be a public holiday [@ramaphosa2023address]. It was proclaimed under section 2A of the Public Holidays Act, which lets the President declare any day a public holiday by proclamation in the Gazette [@presidency2023proclamation; @rsa1995holidays]. The economist Dawie Roodt estimated that "the loss to production for the economy would be between R10 to R20 billion per day" [@maluleke2023boks]. Against nominal GDP of R`r num(nominal_holiday_q / 1e6, 2)` trillion in `r quarter_label(holiday_quarter)`, that is `r pct(100 * ROODT_COST_PER_DAY[["low"]] / nominal_holiday_q, 2)`% to `r pct(100 * ROODT_COST_PER_DAY[["high"]] / nominal_holiday_q, 2)`% of the quarter's output. Real GDP grew `r num(g$growth[g$date == holiday_quarter])`% that quarter. The quarterly figures cannot separate one day's holiday from everything else that happened in it.
+
+# Discussion {#sec-discussion}
+
+The three timescales agree, and the power calculations say how much that agreement is worth. Over a weekend the design rules out a Test moving the rand by more than about `r bp(eq_p, 0)` basis points. Over a month it could reliably detect about `r num(mde(bar_test$se), 1)`% of bar sales and `r num(mde(spec_test$se), 1)`% of sales at butchers and bottle stores. Over a quarter it could detect `r num(mde(gdp_test$se))` percentage points of growth. Smaller effects may exist. In rand the three are far apart: about R`r num(rand_m("bar", mde(bar_test$se)), 0)` million per Test in bar sales at restaurants, takeaways and caterers, R`r num(rand_m("specialised", mde(spec_test$se)), 0)` million at the specialised stores, R`r num(rand_m("general", mde(gen_test$se)), 0)` million at general dealers and R`r num(nominal_latest * mde(gdp_test$se) / 100 / 1000, 1)` billion of GDP. A braai effect worth tens of millions of rand per Test is something only the first two could have seen.
+
+Several limits remain. Asking whether a Test was played means comparing Test periods with other periods, and fixtures are not drawn at random. The season and year effects, the week-of-year check and the placebos are the defence, and one placebo failed: the rand was weaker on the Friday before a Test than on other Fridays, and the paper cannot say why. The design treats a surprise loss and an expected one alike; pre-match odds would sharpen the test of the result, and would separate it from where and against whom it came. Daily fixes cannot see a move at the Monday open that reverses before noon in New York, which is the intraday channel @ehrmann2016hurts found in stock prices. The rand is set in a global market where South African sentiment is one input among many. The monthly data cannot see a spike that is paid for within the same month, which is the point, and they miss pubs, taverns and the informal sector. Attendance at work on the Monday and the national mood are untested. @kavetsos2010national found no happiness effect of national sporting success; the search for this paper found no such test for South Africa.
+
+# Conclusion {#sec-conclusion}
+
+When the Springboks play, nothing in the economy measurably moves. Over `r n_years` years the rand's weekend return is the same with a Test as without one, to within about `r bp(eq_p, 0)` basis points, and the rand moves no further in either direction. A month with one more Test sells no more drink at restaurants, takeaways and caterers, and no more at butchers or bottle stores, than the same month in another year, and a quarter with more Tests grows no faster. Winning rather than losing changes none of that. The one sporting month that shows up in restaurant, takeaway and catering sales is the one that brought foreign visitors. The rallies that followed two World Cup finals coincided with a record foreign investment and a reprieve from Moody's, and the regression that blames the titles for the rand's decline is an artefact of two trending series. What the paper cannot explain is a weaker rand on the Friday before a Test.
+
+The policy recommendations are that the South African Reserve Bank need not add Springbok fixtures to its calendar, and that a butcher or bottle store hoping for a good month should want five Saturdays in it more than a Test match. The Reserve Bank's MPC may well watch the rugby anyway.
+
+# References {.unnumbered}
+
+::: {#refs}
+:::
+
+{{< pagebreak >}}
+
+# Appendix: reproducing this paper {#sec-reproduce .appendix}
+
+The repository at [`r sub("^https://", "", REPO_URL)`](`r REPO_URL`) holds the data snapshots, the code that fetched them and the code that turns them into this document. With R `r paste(R.version$major, R.version$minor, sep = ".")` [@rcore2025] and Quarto installed:
+
+```{.bash}
+Rscript -e "renv::restore()"                       # install the locked package versions
+quarto render springbok-economy.qmd                # rebuild the paper from data/raw
+Rscript -e "testthat::test_dir('tests/testthat')"  # unit tests for the pipeline
+```
+
+Rendering never touches the network. It reads `data/raw/`, checks each file against the SHA-256 hashes in `data/raw/MANIFEST.csv`, and stops if any has changed. `Rscript R/fetch_data.R` downloads fresh snapshots from FRED and World Rugby. World Rugby's terms do not allow its pages to be republished, so the script keeps them locally, and the repository holds the match facts it extracts from them, in `data/raw/world_rugby/springbok_matches.csv`. FRED revises GDP and World Rugby edits old entries, so a re-fetch can change results, and the manifest records which files moved. The cross-check database is not public; its Springbok rows are committed as `data/raw/crosscheck/rugby_db_springboks.csv`, and `R/export_crosscheck.R` regenerates them where the database exists. Statistics South Africa's files sit behind a CAPTCHA, so they were downloaded in a browser from its Time Series Data page and recorded in the manifest with `Rscript R/register_manual.R`. Score corrections live in `data/corrections/` with a source for each, and the build fails if World Rugby's entry changes underneath one. Randomisation uses seed `r SEED` and `r num(N_PERMUTATIONS, 0)` draws, set with the other inputs in `R/config.R`. The code is under the MIT licence and this paper under CC BY 4.0; the data remain their sources', on the terms set out in the repository's README.
+
+```{r}
+#| label: tbl-manifest
+#| tbl-cap: "Raw data snapshots"
+man <- read.csv(MANIFEST_PATH) |>
+  mutate(Group = case_when(grepl("/fred/", file) ~ "FRED series",
+                           grepl("/world_rugby/", file) ~ "World Rugby match facts (from its match-list pages)",
+                           grepl("/statssa/", file) ~ "Stats SA time series (downloaded by hand)",
+                           TRUE ~ "Cross-check export")) |>
+  group_by(Group) |>
+  summarise(Files = n(), `Size (KB)` = round(sum(bytes) / 1024),
+            Retrieved = substr(max(retrieved_utc), 1, 10), .groups = "drop")
+kable(man, format = "pipe")
+```

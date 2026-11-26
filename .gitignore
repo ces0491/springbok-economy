@@ -1,0 +1,15 @@
+# Quarto and knitr build output
+/.quarto/
+*_files/
+*.knit.md
+*.typ
+
+# World Rugby's match-list pages. Its terms do not allow them to be republished;
+# R/fetch_data.R extracts the facts the paper uses into
+# data/raw/world_rugby/springbok_matches.csv, which is committed.
+data/raw/world_rugby/*.json
+
+# R session files
+.Rhistory
+.RData
+.Rproj.user/
