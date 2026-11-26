@@ -191,6 +191,14 @@ nominal_holiday_q <- res$gdp_nominal$value[res$gdp_nominal$date == holiday_quart
 nominal_latest <- tail(res$gdp_nominal$value[!is.na(res$gdp_nominal$value)], 1)
 covid_quarters <- paste(quarter_label(res$covid), collapse = " and ")
 fix25 <- res$corrections |> mutate(match_date = as.Date(match_date))
+# Tests the second database took from World Rugby itself: no independent check.
+db_pairs <- res$crosscheck$pairs
+db_from_wr <- db_pairs |> filter(data_source == CROSSCHECK_FROM_WORLD_RUGBY)
+lions_from_wr <- sort(unique(year(db_from_wr$match_date[db_from_wr$opponent == "British & Irish Lions"])))
+venue_filled_from_wr <- res$tests_all |>
+  filter(is.na(venue_country)) |>
+  semi_join(db_from_wr, by = c("match_date", "opponent")) |>
+  nrow()
 r2_benchmark <- 100 * summary(res$played[["(2)"]]$fit)$r.squared
 
 # Spending.
@@ -358,6 +366,11 @@ stopifnot(
   "World Rugby and the database no longer disagree on exactly one score" =
     nrow(res$crosscheck$score_disagreements) == 1,
   "the text describes exactly one score correction" = nrow(fix25) == 1,
+  "the second database no longer takes some Tests from World Rugby, or now takes most of them" =
+    nrow(db_from_wr) > 0 && nrow(db_from_wr) < nrow(db_pairs) / 2,
+  "no Lions series is among the Tests the second database took from World Rugby" = length(lions_from_wr) > 0,
+  "there are no longer two Tests without a World Rugby venue, or one takes its home side from World Rugby" =
+    res$n_venue_filled == 2 && venue_filled_from_wr == 0,
   "tour opponents named in the text are missing" =
     all(c("Pontypridd", "Hanan Shield Districts") %in% res$wr$opponent),
   "fewer than two Tests in Australia are listed at 8pm UTC" = n_8pm_australia >= 2,
@@ -441,7 +454,7 @@ kable(src, format = "pipe")
 *Sources:* @worldrugby2026matches; @tobias2026rugbydb; @fed2026h10; @statssa2026foodbev; @statssa2026retail; @imf2026gdp. Retrieved 25 November 2026. The analysis of Statistics South Africa's data is my own independent processing of it.
 :::
 
-**Tests.** World Rugby's list holds `r nrow(res$wr)` Springbok entries from `r first_year` onwards, including tour matches against provinces, clubs, A sides, the Barbarians and World XVs. Pontypridd and the Hanan Shield Districts are in there. A match counts as a Test here when the opponent is the senior national side of a World Rugby member union or the British & Irish Lions, which leaves `r n_tests_all` Tests. Each was paired with a results database I compiled separately from ESPN's scoreboard and an older historical import [@tobias2026rugbydb]. All `r res$crosscheck$n_paired` Tests pair one to one, `r res$crosscheck$date_offsets` of them a day apart because an evening kick-off in the Americas falls on the next UTC day. The two sources disagree on one score: World Rugby has the Springboks scoring `r fix25$world_rugby_sa_score` in the `r fix25$sa_score`–`r fix25$opp_score` loss to `r fix25$opponent` at Ellis Park on `r long_date(fix25$match_date)`, against `r fix25$sa_score` in the database and in match reports [@williamson2025stunner]. The correction is recorded in the repository, and the result is a loss either way. World Rugby's labels for World Cup stages agree with the tournament format in all `r res$n_rwc_labelled` World Cup matches, and its four finals won are the four in @tbl-finals. A Test counts as a home Test when World Rugby's venue is in South Africa. For the `r plural(res$n_venue_filled, "Test", "Tests")` where it lists no venue, the second database's home side decides.
+**Tests.** World Rugby's list holds `r nrow(res$wr)` Springbok entries from `r first_year` onwards, including tour matches against provinces, clubs, A sides, the Barbarians and World XVs. Pontypridd and the Hanan Shield Districts are in there. A match counts as a Test here when the opponent is the senior national side of a World Rugby member union or the British & Irish Lions, which leaves `r n_tests_all` Tests. Each was paired with a results database I compiled separately, mostly from ESPN's scoreboard and an older historical import [@tobias2026rugbydb]. `r nrow(db_from_wr)` of its Tests, among them the `r and_list(lions_from_wr)` Lions series, are recorded in it as coming from World Rugby itself, so for those the comparison below is not independent. All `r res$crosscheck$n_paired` Tests pair one to one, `r res$crosscheck$date_offsets` of them a day apart because an evening kick-off in the Americas falls on the next UTC day. The two sources disagree on one score: World Rugby has the Springboks scoring `r fix25$world_rugby_sa_score` in the `r fix25$sa_score`–`r fix25$opp_score` loss to `r fix25$opponent` at Ellis Park on `r long_date(fix25$match_date)`, against `r fix25$sa_score` in the database and in match reports [@williamson2025stunner]. The correction is recorded in the repository, and the result is a loss either way. World Rugby's labels for World Cup stages agree with the tournament format in all `r res$n_rwc_labelled` World Cup matches, and its four finals won are the four in @tbl-finals. A Test counts as a home Test when World Rugby's venue is in South Africa. For the `r plural(res$n_venue_filled, "Test", "Tests")` where it lists no venue, the second database's home side decides; neither is one it took from World Rugby.
 
 World Rugby's kick-off times are unreliable for older matches. Several Tests in Australia are listed at 8pm UTC, which would be early the next morning local time. The design below does not use kick-off times.
 

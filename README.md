@@ -40,7 +40,7 @@ Statistics South Africa's site sits behind a CAPTCHA, so its two monthly time se
 | Data | Source |
 | --- | --- |
 | Springbok results | World Rugby match list (`api.wr-rims-prod.pulselive.com/rugby/v3/match`, team 39); the repository holds the match facts extracted from it |
-| Cross-check results, and the home side where World Rugby lists no venue | `rugby-tournament-predictor` database (ESPN and a historical import); not public, exported to `data/raw/crosscheck/` |
+| Cross-check results, and the home side where World Rugby lists no venue | `rugby-tournament-predictor` database (mostly ESPN and a historical import, with some Tests from World Rugby); not public, exported to `data/raw/crosscheck/` |
 | Exchange rates | Federal Reserve H.10 noon buying rates via FRED: DEXSFUS, DEXBZUS, DEXMXUS, DEXINUS, DEXKOUS, DEXTHUS |
 | GDP | IMF International Financial Statistics via FRED: NGDPRSAXDCZAQ (real), NGDPSAXDCZAQ (nominal) |
 | Bar and food income | Stats SA Food and beverages survey (P6420), constant prices, monthly, downloaded by hand |
@@ -69,6 +69,6 @@ Under FRED's [terms](https://fred.stlouisfed.org/legal/) each series needs a cit
 - Board of Governors of the Federal Reserve System (US), Thai Baht to U.S. Dollar Spot Exchange Rate [DEXTHUS], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/DEXTHUS>
 - International Monetary Fund, Real Gross Domestic Product (GDP) for South Africa [NGDPRSAXDCZAQ], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/NGDPRSAXDCZAQ>
 - International Monetary Fund, Nominal Gross Domestic Product (GDP) for South Africa [NGDPSAXDCZAQ], retrieved from FRED, Federal Reserve Bank of St. Louis; <https://fred.stlouisfed.org/series/NGDPSAXDCZAQ>
-- **Cross-check results** (`data/raw/crosscheck/`): Springbok match results exported from my own results database, compiled from ESPN's scoreboard and a historical import.
+- **Cross-check results** (`data/raw/crosscheck/`): Springbok match results exported from my own results database, compiled mostly from ESPN's scoreboard and a historical import, with some Tests from World Rugby (marked in its `data_source` column).
 
 `harvard-cite-them-right.csl` is from the Zotero Style Repository, under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).

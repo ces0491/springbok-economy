@@ -1,9 +1,11 @@
-# Export the Springbok Tests held in a second, independently compiled results
+# Export the Springbok Tests held in a second, separately compiled results
 # database, so the paper can check World Rugby's list against it.
 #
-# The database is rugby-tournament-predictor's rugby.db (ESPN scoreboard plus a
-# historical import, audited against both). It is not public, so its export is
-# committed as a snapshot and this script only needs to run where it exists:
+# The database is rugby-tournament-predictor's rugby.db, built mostly from ESPN's
+# scoreboard and a historical import. Rows it took from World Rugby itself carry
+# data_source = CROSSCHECK_FROM_WORLD_RUGBY; for those the check is not
+# independent, and the paper says so. The database is not public, so its export
+# is committed as a snapshot and this script only needs to run where it exists:
 #
 #   Rscript R/export_crosscheck.R path/to/rugby.db
 

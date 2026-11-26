@@ -63,6 +63,11 @@ WORLD_RUGBY_PAUSE_S <- 1.2
 #: repository.
 WORLD_RUGBY_PAGES_DIR <- "data/raw/world_rugby"
 
+#: The tag the second results database (data/raw/crosscheck/) gives the rows it
+#: took from World Rugby itself. For those Tests the cross-check is not
+#: independent, and the paper says so.
+CROSSCHECK_FROM_WORLD_RUGBY <- "world_rugby"
+
 #: The match facts extracted from those pages, which the paper renders from and
 #: the repository holds in their place, and how the manifest describes them.
 WORLD_RUGBY_FACTS <- "data/raw/world_rugby/springbok_matches.csv"

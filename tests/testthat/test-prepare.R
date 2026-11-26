@@ -88,11 +88,14 @@ test_that("World Cup knockouts follow the format rule", {
 test_that("the cross-check pairs Tests a day apart and reports disagreements", {
   wr_tests <- dplyr::bind_rows(wr_row("2010-06-12", "France", 42, 17), wr_row("2010-06-19", "Italy", 29, 13))
   db <- tibble::tibble(match_date = c("2010-06-13", "2010-06-19"), home_team = "South Africa",
-                       away_team = c("France", "Italy"), home_score = c(42, 30), away_score = c(17, 13))
+                       away_team = c("France", "Italy"), home_score = c(42, 30), away_score = c(17, 13),
+                       data_source = c("espn", "world_rugby"))
   cc <- crosscheck_tests(wr_tests, db)
   expect_equal(cc$n_paired, 2)
   expect_equal(cc$date_offsets, 1)
   expect_equal(nrow(cc$score_disagreements), 1)
+  # Each pair keeps the database's record of where its row came from.
+  expect_equal(cc$pairs$data_source[cc$pairs$opponent == "Italy"], "world_rugby")
 })
 
 test_that("World Rugby's pages become a facts table that reads back unchanged", {

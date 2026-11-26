@@ -154,7 +154,7 @@ crosscheck_tests <- function(wr_tests_raw, db) {
       db_sa = if_else(home_team == "South Africa", home_score, away_score),
       db_opp = if_else(home_team == "South Africa", away_score, home_score)
     ) |>
-    select(db_date = match_date, opponent, db_sa, db_opp, db_sa_home) |>
+    select(db_date = match_date, opponent, db_sa, db_opp, db_sa_home, any_of("data_source")) |>
     mutate(db_row = row_number())
 
   pairs <- wr_tests_raw |>
